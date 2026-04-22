@@ -1626,7 +1626,10 @@
                 return { deposit: effectiveMins, deficit: 0, reason: `${label} +${formatMinutesToHM(effectiveMins)}` };
             } else {
                 // 工作日：加权工时超出基准部分存入，不足部分扣除
-                if (rawMins === 0) return { deposit: 0, deficit: 0, reason: '无工时记录' };
+                if (rawMins === 0) {
+                    // 工作日无打卡 → 扣除全天基准
+                    return { deposit: 0, deficit: DAILY_BASE_MINUTES, reason: `未打卡 -${formatMinutesToHM(DAILY_BASE_MINUTES)}` };
+                }
                 const diff = weightedMins - DAILY_BASE_MINUTES;
                 const bonusNote = weightedMins !== rawMins ? ' (含时段加成)' : '';
                 if (diff >= 0) {
@@ -1639,6 +1642,31 @@
 
         // 统一假期账户余额（分钟数，可正可负）
         // 账户 = 历年基础年假 + 工时超时存入 - 工时欠时扣减 - 已用年假
+        // 获取系统最早记录日期（打卡、专注、请假中最早的一天）
+        function getEarliestRecordDate() {
+            const allDates = [
+                ...Object.keys(appData.checkRecords || {}),
+                ...Object.keys(appData.focusByCategory || {}),
+                ...Object.keys(appData.leaveRecords || {})
+            ].filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+            return allDates.length > 0 ? allDates[0] : null;
+        }
+
+        // 枚举从 startStr 到 endStr 的所有日期
+        function enumDates(startStr, endStr) {
+            const dates = [];
+            const cur = new Date(startStr + 'T00:00:00');
+            const end = new Date(endStr + 'T00:00:00');
+            while (cur <= end) {
+                const y = cur.getFullYear();
+                const m = String(cur.getMonth() + 1).padStart(2, '0');
+                const d = String(cur.getDate()).padStart(2, '0');
+                dates.push(`${y}-${m}-${d}`);
+                cur.setDate(cur.getDate() + 1);
+            }
+            return dates;
+        }
+
         function calculateUnifiedBalance() {
             ensureAnnualLeave();
             let grantedMinutes = 0;
@@ -1649,13 +1677,19 @@
             });
             let totalDeposit = 0;
             let totalDeficit = 0;
-            // 假期库存只与打卡记录相关，不包含专注分类
-            const allDates = new Set(Object.keys(appData.checkRecords || {}));
-            allDates.forEach(dateStr => {
-                const { deposit, deficit } = getDailyBankDeposit(dateStr);
-                totalDeposit += deposit;
-                totalDeficit += deficit;
-            });
+
+            // 从最早记录日到今天，逐天计算（含无打卡的工作日）
+            const earliest = getEarliestRecordDate();
+            if (earliest) {
+                const today = getTodayStr();
+                const allDates = enumDates(earliest, today);
+                allDates.forEach(dateStr => {
+                    const { deposit, deficit } = getDailyBankDeposit(dateStr);
+                    totalDeposit += deposit;
+                    totalDeficit += deficit;
+                });
+            }
+
             const balanceMinutes = grantedMinutes + totalDeposit - totalDeficit - annualUsedMinutes;
             return { balanceMinutes, grantedMinutes, totalDeposit, totalDeficit, annualUsedMinutes };
         }
