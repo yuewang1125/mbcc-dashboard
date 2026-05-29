@@ -77,6 +77,22 @@
         ::-webkit-scrollbar { width: 6px; height: 6px;}
         ::-webkit-scrollbar-track { background: #ebe5d6; border-radius: 10px; }
         ::-webkit-scrollbar-thumb { background: #b3262e; border-radius: 10px; }
+        /* MBCC 装饰性英文标签 — 自适应不折行 */
+        .mbcc-label {
+            font-family: 'JetBrains Mono', monospace;
+            color: #8a8378;
+            text-transform: uppercase;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: clamp(6px, 1.2vw, 9px);
+            letter-spacing: clamp(0.04em, 0.8vw, 0.18em);
+            line-height: 1.4;
+        }
+        .mbcc-label-sm {
+            font-size: clamp(5.5px, 1vw, 8px);
+            letter-spacing: clamp(0.02em, 0.6vw, 0.12em);
+        }
         .timer-pulse { animation: pulseGlow 1.2s infinite; }
         @keyframes pulseGlow { 0% { box-shadow: 0 0 0 0 rgba(179, 38, 46, 0.6); } 70% { box-shadow: 0 0 0 8px rgba(179, 38, 46, 0); } 100% { box-shadow: 0 0 0 0 rgba(179, 38, 46, 0); } }
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.25); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; z-index: 1000; visibility: hidden; opacity: 0; transition: visibility 0.2s, opacity 0.2s; }
@@ -366,6 +382,133 @@
             animation: statusBlink 0.6s step-end infinite;
             color: inherit;
         }
+
+        /* === MBCC 打卡反馈动画 === */
+        .mbcc-checkin-overlay {
+            position: fixed; inset: 0; z-index: 2000;
+            display: flex; align-items: center; justify-content: center;
+            pointer-events: none;
+            background: rgba(0,0,0,0.88);
+            animation: mbccOverlayLife 2.4s ease forwards;
+        }
+        @keyframes mbccOverlayLife {
+            0%   { opacity: 0; }
+            8%   { opacity: 1; }
+            72%  { opacity: 1; }
+            100% { opacity: 0; }
+        }
+        /* 扫描线纹理 */
+        .mbcc-checkin-overlay::before {
+            content: '';
+            position: absolute; inset: 0;
+            background: repeating-linear-gradient(0deg, transparent 0px, transparent 2px, rgba(122,26,31,0.03) 2px, rgba(122,26,31,0.03) 4px);
+            pointer-events: none;
+        }
+        /* 水平扫描光线 */
+        .mbcc-checkin-overlay::after {
+            content: '';
+            position: absolute; left: 0; width: 100%; height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(122,26,31,0.6), transparent);
+            animation: mbccScanLine 0.8s ease-out forwards;
+        }
+        @keyframes mbccScanLine {
+            0%   { top: 0; opacity: 1; }
+            100% { top: 100%; opacity: 0.3; }
+        }
+        .mbcc-checkin-body {
+            display: flex; flex-direction: column; align-items: center;
+            position: relative; z-index: 1;
+        }
+        /* 状态点 */
+        .mbcc-checkin-dots {
+            display: flex; align-items: center; gap: 5px;
+            margin-bottom: 14px;
+            opacity: 0; animation: mbccFadeIn 0.3s ease 0.15s forwards;
+        }
+        .mbcc-checkin-dots .dot {
+            width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid #7a1a1f;
+        }
+        .mbcc-checkin-dots .dot.filled { background: #7a1a1f; }
+        .mbcc-checkin-dots .tag {
+            font-family: 'Courier New', monospace;
+            font-size: 0.6rem; color: #7a1a1f;
+            letter-spacing: 0.08em; font-weight: bold; margin-left: 4px;
+        }
+        /* 中文主标题 */
+        .mbcc-checkin-title {
+            font-size: clamp(1.6rem, 5vw, 2.8rem);
+            color: #7a1a1f;
+            letter-spacing: 0.35em;
+            font-weight: 400;
+            text-shadow: 0 0 16px rgba(122,26,31,0.6), 0 0 40px rgba(122,26,31,0.25);
+            opacity: 0; animation: mbccFadeIn 0.4s ease 0.25s forwards;
+        }
+        /* 斜条纹 */
+        .mbcc-checkin-stripes {
+            width: 50px; height: 8px; margin: 12px 0 8px;
+            background: repeating-linear-gradient(-45deg, #7a1a1f 0px, #7a1a1f 3px, transparent 3px, transparent 6px);
+            opacity: 0; animation: mbccFadeIn 0.3s ease 0.4s forwards;
+        }
+        /* 文档编号 */
+        .mbcc-checkin-doccode {
+            font-family: 'Courier New', monospace;
+            font-size: 0.7rem; color: rgba(255,255,255,0.3);
+            letter-spacing: 0.06em;
+            display: flex; align-items: center; gap: 6px;
+            opacity: 0; animation: mbccFadeIn 0.3s ease 0.5s forwards;
+        }
+        .mbcc-checkin-doccode .arrows { color: #7a1a1f; font-size: 0.55rem; }
+        /* 时间大字 */
+        .mbcc-checkin-time {
+            font-family: 'Courier New', monospace;
+            font-size: clamp(2rem, 6vw, 3.5rem);
+            font-weight: 700; color: rgba(255,255,255,0.9);
+            letter-spacing: 0.12em; margin-top: 16px;
+            text-shadow: 0 0 20px rgba(255,255,255,0.15);
+            opacity: 0; animation: mbccTimeReveal 0.5s ease 0.55s forwards;
+        }
+        @keyframes mbccTimeReveal {
+            0%   { opacity: 0; transform: translateY(8px); letter-spacing: 0.4em; }
+            100% { opacity: 1; transform: translateY(0); letter-spacing: 0.12em; }
+        }
+        /* 状态文字 */
+        .mbcc-checkin-status {
+            font-family: 'Courier New', monospace;
+            font-size: 0.75rem; letter-spacing: 0.2em;
+            color: #7a1a1f; margin-top: 10px;
+            text-shadow: 0 0 6px rgba(122,26,31,0.5);
+            opacity: 0; animation: mbccFadeIn 0.3s ease 0.75s forwards;
+        }
+        .mbcc-checkin-status::after {
+            content: ' \25fb'; animation: statusBlink 0.6s step-end infinite;
+        }
+        /* 进度条 */
+        .mbcc-checkin-progress {
+            width: min(320px, 55vw); height: 2px;
+            background: rgba(255,255,255,0.06);
+            margin-top: 10px; position: relative; overflow: hidden;
+            opacity: 0; animation: mbccFadeIn 0.2s ease 0.3s forwards;
+        }
+        .mbcc-checkin-progress .fill {
+            position: absolute; top: 0; left: 0; height: 100%;
+            background: #7a1a1f; box-shadow: 0 0 8px rgba(122,26,31,0.6);
+            animation: mbccProgressFill 1.2s ease 0.3s forwards;
+        }
+        @keyframes mbccProgressFill { 0% { width: 0; } 100% { width: 100%; } }
+        /* 底部水印 */
+        .mbcc-checkin-watermark {
+            position: absolute; bottom: 12%; left: 50%; transform: translateX(-50%);
+            font-family: 'Impact', 'Arial Black', sans-serif;
+            font-size: clamp(1.5rem, 5vw, 3rem);
+            font-weight: 900; letter-spacing: 0.06em;
+            color: transparent;
+            -webkit-text-stroke: 1px rgba(255,255,255,0.04);
+            white-space: nowrap; pointer-events: none;
+        }
+        @keyframes mbccFadeIn {
+            0%   { opacity: 0; transform: translateY(6px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
 <body class="font-sans p-4 md:p-6 lg:p-8">
@@ -469,12 +612,11 @@
             <div style="display:flex; align-items:flex-start; gap:20px;">
               <!-- Avatar with circular clip -->
               <div style="position:relative; flex-shrink:0; cursor:pointer;" onclick="document.getElementById('avatarInput').click()" title="点击更换头像">
-                <div id="avatarContainer" style="width:72px; height:72px; background:#1a1814; border-radius:50%; overflow:hidden; display:flex; align-items:center; justify-content:center;">
+                <div id="avatarContainer" style="width:72px; height:72px; background:#1a1814; border-radius:50%; overflow:hidden; display:flex; align-items:center; justify-content:center; box-shadow:0 0 0 3px #fbf8f0, 0 0 0 5px #b3262e;">
                   <img id="userAvatar" src="https://api.dicebear.com/7.x/notionists/svg?seed=PhD" style="width:100%; height:100%; object-fit:cover;" alt="头像">
                   <span id="avatarFallback" style="position:absolute; color:#f3efe6; font-family:'Big Shoulders Display',sans-serif; font-size:26px; line-height:1; letter-spacing:0.02em; display:none;">MB</span>
                 </div>
-                <div style="position:absolute; top:-4px; left:-4px; width:80px; height:80px; border:2px solid #b3262e; border-radius:50%; pointer-events:none;"></div>
-                <div style="position:absolute; bottom:2px; right:-2px; width:18px; height:18px; background:#b3262e; border-radius:50%; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:2;">
+                <div style="position:absolute; bottom:2px; right:2px; width:18px; height:18px; background:#b3262e; border-radius:50%; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:2;">
                   <i class="fas fa-camera" style="font-size:8px; color:#f3efe6;"></i>
                 </div>
                 <input type="file" id="avatarInput" accept="image/*" class="hidden" onchange="handleAvatarUpload(event)">
@@ -712,7 +854,7 @@
                     </div>
                     <div id="todayDayType" style="font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.14em; padding:5px 12px; border:1px solid #cdc4b1; color:#56514a; text-transform:uppercase;"></div>
                 </div>
-                <div style="font-family:'JetBrains Mono',monospace; font-size:9px; color:#8a8378; letter-spacing:0.16em; text-transform:uppercase; margin-bottom:16px;">
+                <div class="mbcc-label" style="margin-bottom:16px;">
                     <span class="module-title" data-module="holiday-tag" data-default="UNIFIED · DEPOSIT OVERTIME · WITHDRAW SHORTFALL">UNIFIED · DEPOSIT OVERTIME · WITHDRAW SHORTFALL</span>
                 </div>
 
@@ -720,16 +862,16 @@
                 <div id="holidayStatGrid" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0; border:1px solid #cdc4b1; margin-bottom:16px;">
                     <!-- Unified Balance -->
                     <div style="padding:14px 16px; border-right:1px solid #cdc4b1;">
-                        <div style="font-family:'JetBrains Mono',monospace; font-size:8px; letter-spacing:0.18em; color:#8a8378; text-transform:uppercase; margin-bottom:8px;">UNIFIED BALANCE · TOTAL DAYS</div>
+                        <div class="mbcc-label" style="margin-bottom:8px;">UNIFIED BALANCE · TOTAL DAYS</div>
                         <div style="display:flex; align-items:baseline; gap:4px;">
                             <span id="unifiedBalanceDisplay" style="font-family:'Big Shoulders Display',sans-serif; font-size:42px; font-weight:900; line-height:1; color:#1a1814;">5.0</span>
                             <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#8a8378; letter-spacing:0.1em;">DAYS</span>
                         </div>
-                        <div id="unifiedBalanceDetail" style="font-family:'JetBrains Mono',monospace; font-size:8px; color:#8a8378; letter-spacing:0.08em; margin-top:8px; line-height:1.6; text-transform:uppercase;">BASE 5d · +OT 0d · -SHORT 0d · ANNUAL USED 0d</div>
+                        <div id="unifiedBalanceDetail" class="mbcc-label mbcc-label-sm" style="margin-top:8px;">BASE 5d · +OT 0d · -SHORT 0d · ANNUAL USED 0d</div>
                     </div>
                     <!-- Today Hours -->
                     <div style="padding:14px 16px; border-right:1px solid #cdc4b1;">
-                        <div style="font-family:'JetBrains Mono',monospace; font-size:8px; letter-spacing:0.18em; color:#8a8378; text-transform:uppercase; margin-bottom:8px;">TODAY HRS</div>
+                        <div class="mbcc-label" style="margin-bottom:8px;">TODAY HRS</div>
                         <div style="display:flex; align-items:baseline; gap:2px;">
                             <span id="todayWorkHours" style="font-family:'Big Shoulders Display',sans-serif; font-size:32px; font-weight:900; line-height:1; color:#1a1814;">0m</span>
                             <span style="font-family:'JetBrains Mono',monospace; font-size:13px; color:#8a8378;">/6h</span>
@@ -737,11 +879,11 @@
                         <div style="width:100%; height:4px; background:#ebe5d6; margin-top:8px; position:relative;">
                             <div id="todayWorkBar" style="height:100%; background:#b3262e; width:0%; transition:width 0.4s ease;"></div>
                         </div>
-                        <div id="todayWorkStatus" style="font-family:'JetBrains Mono',monospace; font-size:8px; color:#8a8378; letter-spacing:0.12em; margin-top:6px; text-transform:uppercase;">0% · OF 6H TARGET</div>
+                        <div id="todayWorkStatus" class="mbcc-label mbcc-label-sm" style="margin-top:6px;">0% · OF 6H TARGET</div>
                     </div>
                     <!-- Sick / Personal -->
                     <div style="padding:14px 16px;">
-                        <div style="font-family:'JetBrains Mono',monospace; font-size:8px; letter-spacing:0.18em; color:#8a8378; text-transform:uppercase; margin-bottom:8px;">SICK · PERSONAL</div>
+                        <div class="mbcc-label" style="margin-bottom:8px;">SICK · PERSONAL</div>
                         <div id="leaveUsedDisplay" style="display:flex; align-items:baseline; gap:6px;">
                             <span id="sickCount" style="font-family:'Big Shoulders Display',sans-serif; font-size:42px; font-weight:900; line-height:1; color:#1a1814;">0</span>
                             <span style="font-family:'JetBrains Mono',monospace; font-size:9px; color:#8a8378; letter-spacing:0.08em;">SICK</span>
@@ -749,7 +891,7 @@
                             <span id="personalCount" style="font-family:'Big Shoulders Display',sans-serif; font-size:42px; font-weight:900; line-height:1; color:#1a1814;">0</span>
                             <span style="font-family:'JetBrains Mono',monospace; font-size:9px; color:#8a8378; letter-spacing:0.08em;">PERSONAL</span>
                         </div>
-                        <div id="leaveRemainDetail" style="font-family:'JetBrains Mono',monospace; font-size:8px; color:#8a8378; letter-spacing:0.12em; margin-top:8px; text-transform:uppercase;">DOES NOT AFFECT BALANCE</div>
+                        <div id="leaveRemainDetail" class="mbcc-label mbcc-label-sm" style="margin-top:8px;">DOES NOT AFFECT BALANCE</div>
                     </div>
                 </div>
 
@@ -764,8 +906,8 @@
                 <!-- Recent Ledger -->
                 <div style="border-top:1px solid #cdc4b1; padding-top:12px;">
                     <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px;">
-                        <span style="font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.16em; color:#8a8378; text-transform:uppercase;">RECENT LEDGER · LAST 14 DAYS</span>
-                        <span style="font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.16em; color:#8a8378; text-transform:uppercase;">±TIME</span>
+                        <span class="mbcc-label">RECENT LEDGER · LAST 14 DAYS</span>
+                        <span class="mbcc-label">±TIME</span>
                     </div>
                     <div id="holidayBankList" style="max-height:220px; overflow-y:auto;"></div>
                 </div>
@@ -791,10 +933,10 @@
                         <div style="display:flex; align-items:baseline; gap:4px; justify-content:flex-end;">
                             <span id="focusCatDayTotal" style="font-family:'Big Shoulders Display',sans-serif; font-size:38px; font-weight:900; line-height:1; color:#b3262e;">0m</span>
                         </div>
-                        <div style="font-family:'JetBrains Mono',monospace; font-size:8px; color:#8a8378; letter-spacing:0.16em; text-transform:uppercase;">TOTAL · TODAY</div>
+                        <div class="mbcc-label">TOTAL · TODAY</div>
                     </div>
                 </div>
-                <div style="font-family:'JetBrains Mono',monospace; font-size:9px; color:#8a8378; letter-spacing:0.16em; text-transform:uppercase; margin-bottom:16px;">
+                <div class="mbcc-label" style="margin-bottom:16px;">
                     <span class="module-title" data-module="focus-sub" data-default="FIVE-MARK SYSTEM · PATH OF DELIBERATION">FIVE-MARK SYSTEM · PATH OF DELIBERATION</span>
                 </div>
 
@@ -807,8 +949,8 @@
                     <!-- Left: Entry with bar charts -->
                     <div>
                         <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid #cdc4b1;">
-                            <span style="font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.16em; color:#8a8378; text-transform:uppercase;">ENTRY · BY CATEGORY</span>
-                            <span style="font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.16em; color:#8a8378; text-transform:uppercase;">MINUTES</span>
+                            <span class="mbcc-label">ENTRY · BY CATEGORY</span>
+                            <span class="mbcc-label">MINUTES</span>
                         </div>
                         <div id="focusCatInputs"></div>
                         <button onclick="clearFocusCatDay()" style="width:100%; margin-top:8px; padding:6px 0; border:1px solid #cdc4b1; background:#fbf8f0; color:#8a8378; font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.12em; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.borderColor='#b3262e';this.style.color='#b3262e'" onmouseout="this.style.borderColor='#cdc4b1';this.style.color='#8a8378'"><i class="fas fa-eraser" style="margin-right:4px;"></i>CLEAR DAY</button>
@@ -818,7 +960,7 @@
                     <div>
                         <!-- Pie + Legend Table -->
                         <div style="margin-bottom:20px;">
-                            <div style="font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.16em; color:#8a8378; text-transform:uppercase; margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid #cdc4b1;">
+                            <div class="mbcc-label" style="margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid #cdc4b1;">
                                 SPLIT · TODAY MIX
                                 <span id="focusCatPieDateLabel" style="margin-left:8px;"></span>
                             </div>
@@ -847,7 +989,7 @@
                         <!-- Trend section -->
                         <div style="border-top:1px solid #cdc4b1; padding-top:12px;">
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                                <span style="font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.16em; color:#8a8378; text-transform:uppercase;">TREND · <span id="focusTrendRangeLabel">14</span>-DAY TREND</span>
+                                <span class="mbcc-label">TREND · <span id="focusTrendRangeLabel">14</span>-DAY TREND</span>
                                 <div style="display:flex; gap:0;">
                                     <button onclick="setFocusCatTrendRange(7)" class="focus-trend-btn" data-range="7" style="padding:3px 8px; border:1px solid #cdc4b1; background:#fbf8f0; color:#8a8378; font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.08em; cursor:pointer;">7D</button>
                                     <button onclick="setFocusCatTrendRange(14)" class="focus-trend-btn" data-range="14" style="padding:3px 8px; border:1px solid #1a1814; background:#1a1814; color:#f3efe6; font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.08em; cursor:pointer;">14D</button>
@@ -1507,15 +1649,122 @@
             else badge.style.display = "none";
         }
 
+        // === 打卡反馈：音效 + 动画 ===
+        function playCheckinSound(type) {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const t = ctx.currentTime;
+                if (type === 'start') {
+                    // 签到：短促电子确认音 — 低频嗡鸣 + 双音上升
+                    const sub = ctx.createOscillator();
+                    const subG = ctx.createGain();
+                    sub.type = 'sine'; sub.frequency.value = 80;
+                    subG.gain.setValueAtTime(0.15, t);
+                    subG.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+                    sub.connect(subG); subG.connect(ctx.destination);
+                    sub.start(t); sub.stop(t + 0.16);
+                    // 确认双音
+                    [[440, 0.05, 'square'], [660, 0.15, 'square']].forEach(([f, d, w]) => {
+                        const o = ctx.createOscillator(); const g = ctx.createGain();
+                        o.type = w; o.frequency.value = f;
+                        g.gain.setValueAtTime(0.08, t + d);
+                        g.gain.exponentialRampToValueAtTime(0.001, t + d + 0.12);
+                        o.connect(g); g.connect(ctx.destination);
+                        o.start(t + d); o.stop(t + d + 0.14);
+                    });
+                    // 噪声脉冲（机械质感）
+                    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.04, ctx.sampleRate);
+                    const nd = buf.getChannelData(0);
+                    for (let i = 0; i < nd.length; i++) nd[i] = (Math.random()*2-1) * Math.exp(-i/(ctx.sampleRate*0.008));
+                    const ns = ctx.createBufferSource(); ns.buffer = buf;
+                    const ng = ctx.createGain(); ng.gain.value = 0.1;
+                    ns.connect(ng); ng.connect(ctx.destination); ns.start(t);
+                } else {
+                    // 签退：下行三音 + 深沉关闭感
+                    [[580, 0, 'square'], [440, 0.1, 'square'], [330, 0.2, 'triangle']].forEach(([f,d,w]) => {
+                        const o = ctx.createOscillator(); const g = ctx.createGain();
+                        o.type = w; o.frequency.value = f;
+                        g.gain.setValueAtTime(0.08, t+d);
+                        g.gain.exponentialRampToValueAtTime(0.001, t+d+0.18);
+                        o.connect(g); g.connect(ctx.destination);
+                        o.start(t+d); o.stop(t+d+0.2);
+                    });
+                    // 低频余韵
+                    const sub = ctx.createOscillator(); const subG = ctx.createGain();
+                    sub.type = 'sine'; sub.frequency.value = 65;
+                    subG.gain.setValueAtTime(0.12, t+0.2);
+                    subG.gain.exponentialRampToValueAtTime(0.001, t+0.5);
+                    sub.connect(subG); subG.connect(ctx.destination);
+                    sub.start(t+0.2); sub.stop(t+0.55);
+                }
+                setTimeout(() => ctx.close(), 1500);
+            } catch(e) { /* 静音降级 */ }
+        }
+
+        function showCheckinAnimation(period, type) {
+            const periodLabel = { morning: '早班', afternoon: '午班', evening: '晚班', night: '深夜' };
+            const typeLabel = type === 'start' ? '签 到' : '签 退';
+            const titleText = `${periodLabel[period]} · ${typeLabel}`;
+            const statusText = type === 'start' ? '值班签到已确认' : '值班签退已确认';
+            const isOut = type === 'end';
+            // 签到=#7a1a1f暗红, 签退=#1a6b4a暗绿
+            const accent = isOut ? '#1a6b4a' : '#7a1a1f';
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12: false });
+            const dateStr = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')}`;
+            const docCode = `MBCC-${type === 'start' ? 'CI' : 'CO'}-${dateStr.replace(/\./g,'')}-${period.toUpperCase().slice(0,3)}`;
+
+            const overlay = document.createElement('div');
+            overlay.className = 'mbcc-checkin-overlay';
+            // 签退时覆盖CSS变量来切换颜色
+            if (isOut) overlay.style.setProperty('--mbcc-accent', accent);
+            overlay.innerHTML = `
+                <div class="mbcc-checkin-body">
+                    <div class="mbcc-checkin-dots" style="${isOut ? 'color:'+accent : ''}">
+                        <div class="dot filled" style="border-color:${accent};${isOut?'background:'+accent:''}"></div>
+                        <div class="dot filled" style="border-color:${accent};${isOut?'background:'+accent:''}"></div>
+                        <div class="dot${type==='start'?' filled':''}" style="border-color:${accent};${!isOut?'background:'+accent:''}"></div>
+                        <span class="tag" style="color:${accent}">MBCC DISPATCH</span>
+                    </div>
+                    <div class="mbcc-checkin-title" style="color:${accent};text-shadow:0 0 16px ${accent}99,0 0 40px ${accent}40;">${titleText}</div>
+                    <div class="mbcc-checkin-stripes" style="background:repeating-linear-gradient(-45deg,${accent} 0px,${accent} 3px,transparent 3px,transparent 6px);"></div>
+                    <div class="mbcc-checkin-doccode">
+                        <span>${docCode}</span>
+                        <span class="arrows" style="color:${accent}">&#9654; &#9654; &#9654;</span>
+                        <span style="color:rgba(255,255,255,0.15);font-size:0.6rem;">${dateStr}</span>
+                    </div>
+                    <div class="mbcc-checkin-time">${timeStr}</div>
+                    <div class="mbcc-checkin-status" style="color:${accent};text-shadow:0 0 6px ${accent}80;">${statusText}</div>
+                    <div class="mbcc-checkin-progress"><div class="fill" style="background:${accent};box-shadow:0 0 8px ${accent}99;"></div></div>
+                </div>
+                <div class="mbcc-checkin-watermark">MINOS BUREAU OF CRISIS CONTROL</div>
+            `;
+            // 扫描线颜色也跟随
+            if (isOut) {
+                overlay.style.cssText += `--scan-color:${accent};`;
+                overlay.querySelector('.mbcc-checkin-body').insertAdjacentHTML('beforebegin',
+                    `<style>.mbcc-checkin-overlay::after{background:linear-gradient(90deg,transparent,${accent}99,transparent)!important;}.mbcc-checkin-overlay::before{background:repeating-linear-gradient(0deg,transparent 0px,transparent 2px,${accent}08 2px,${accent}08 4px)!important;}</style>`
+                );
+            }
+            document.body.appendChild(overlay);
+            setTimeout(() => overlay.remove(), 2600);
+        }
+
         function checkTime(period, type) {
+            if (isRevisionMode) return;  // 修订模式下不触发打卡
             const recs = getCheckRecordsForToday();
             recs[period][type] = new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12: false });
             saveData();
             renderCheckDisplay();
             updateStreakBadge();
+
+            // 反馈
+            playCheckinSound(type);
+            showCheckinAnimation(period, type);
+
             const btn = event.currentTarget; const orig = btn.innerHTML;
             btn.innerHTML = '<i class="fas fa-stamp"></i> 已记录';
-            setTimeout(() => btn.innerHTML = orig, 800);
+            setTimeout(() => btn.innerHTML = orig, 1600);
         }
 
         function renderCheckDisplay() {
@@ -1540,6 +1789,7 @@
         }
 
         function openCheckModal(period, dateStr) {
+            if (isRevisionMode) return;  // 修订模式下不弹出
             const targetDate = dateStr || getTodayStr();
             const recs = getCheckRecordsForDate(targetDate);
             const data = recs[period] || {};
@@ -1582,6 +1832,9 @@
             saveData();
             renderAll();
             document.getElementById('checkInModal').classList.remove('active');
+            // 补录也给反馈
+            playCheckinSound('start');
+            showCheckinAnimation(period, 'start');
             // If we were editing from the day detail modal, refresh it
             if (currentDetailDate === targetDate) {
                 showDayDetail(targetDate, getDailyFocusMinutes(targetDate));
@@ -2203,7 +2456,7 @@
             const deficitD = (totalDeficit / DAILY_BASE_MINUTES).toFixed(1);
             const annualUsedD = (annualUsedMinutes / DAILY_BASE_MINUTES).toFixed(0);
             document.getElementById('unifiedBalanceDetail').innerHTML =
-                `BASE ${grantedD}d &nbsp;· &nbsp;+OT ${depositD}d &nbsp;· &nbsp;-SHORT ${deficitD}d &nbsp;· &nbsp;ANNUAL USED ${annualUsedD}d`;
+                `BASE ${grantedD}d · +OT ${depositD}d · -SHORT ${deficitD}d · USED ${annualUsedD}d`;
 
             // Sick / Personal counts (split)
             let sickDays = 0, personalDays = 0;
