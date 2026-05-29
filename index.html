@@ -41,23 +41,7 @@
         }
         .bg-mbcc-bl { bottom: -60px; left: -60px; }
         .bg-geo-tr {
-            top: -80px; right: -80px;
-            width: 520px; height: 520px;
-            background:
-                /* 大三角 */
-                linear-gradient(215deg, transparent 52%, rgba(179,38,46,0.07) 52%, rgba(179,38,46,0.07) 54%, transparent 54%),
-                /* 圆弧环 */
-                radial-gradient(circle at 70% 30%, transparent 160px, rgba(179,38,46,0.06) 160px, rgba(179,38,46,0.06) 163px, transparent 163px),
-                radial-gradient(circle at 70% 30%, transparent 210px, rgba(179,38,46,0.04) 210px, rgba(179,38,46,0.04) 212px, transparent 212px),
-                radial-gradient(circle at 70% 30%, transparent 260px, rgba(179,38,46,0.03) 260px, rgba(179,38,46,0.03) 262px, transparent 262px),
-                /* 菱形 */
-                linear-gradient(45deg, transparent 54%, rgba(179,38,46,0.055) 54%, rgba(179,38,46,0.055) 56%, transparent 56%),
-                linear-gradient(135deg, transparent 44%, rgba(179,38,46,0.04) 44%, rgba(179,38,46,0.04) 46%, transparent 46%),
-                /* 小十字准星 */
-                linear-gradient(0deg, transparent 48.5%, rgba(179,38,46,0.08) 48.5%, rgba(179,38,46,0.08) 49.5%, transparent 49.5%),
-                linear-gradient(90deg, transparent 48.5%, rgba(179,38,46,0.08) 48.5%, rgba(179,38,46,0.08) 49.5%, transparent 49.5%),
-                /* 扫描线 */
-                repeating-linear-gradient(180deg, transparent 0px, transparent 4px, rgba(179,38,46,0.015) 4px, rgba(179,38,46,0.015) 5px);
+            top: -60px; right: -60px;
         }
         .bg-mbcc-watermark {
             bottom: 20px; left: 50%;
@@ -69,6 +53,17 @@
         @keyframes mbccSpinReverse { 0% { transform: rotate(0deg); } 100% { transform: rotate(-360deg); } }
         .mbcc-ring-spin { animation: mbccSpin 120s linear infinite; transform-origin: center; }
         .mbcc-ring-spin-r { animation: mbccSpinReverse 90s linear infinite; transform-origin: center; }
+        .mbcc-radar-sweep { animation: mbccSpin 6s linear infinite; transform-origin: 260px 260px; }
+        .mbcc-ring-spin-slow { animation: mbccSpin 80s linear infinite; transform-origin: center; }
+        .mbcc-ring-spin-r-slow { animation: mbccSpinReverse 100s linear infinite; transform-origin: center; }
+        @keyframes mbccPulseRing { 0%, 100% { opacity: 0.15; } 50% { opacity: 0.4; } }
+        .mbcc-pulse-ring { animation: mbccPulseRing 3s ease-in-out infinite; }
+        @keyframes mbccBlipFade { 0% { opacity: 0; } 15% { opacity: 0.8; } 100% { opacity: 0; } }
+        .mbcc-blip { animation: mbccBlipFade 6s ease-out infinite; }
+        @keyframes mbccThreatPulse { 0%, 100% { r: 3; opacity: 0.5; } 50% { r: 5; opacity: 0.15; } }
+        .mbcc-threat { animation: mbccThreatPulse 2.5s ease-in-out infinite; }
+        @keyframes mbccRouteTrace { 0% { stroke-dashoffset: 40; } 100% { stroke-dashoffset: 0; } }
+        .mbcc-route-anim { animation: mbccRouteTrace 4s linear infinite; }
         .font-display { font-family: 'Big Shoulders Display', sans-serif; }
         .font-mono-dispatch { font-family: 'JetBrains Mono', monospace; }
         .font-serif-dispatch { font-family: 'Cormorant Garamond', serif; }
@@ -326,7 +321,8 @@
             /* MBCC 背景装饰缩小 */
             .bg-mbcc-bl { bottom: -100px; left: -100px; }
             .bg-mbcc-bl svg { width: 320px; height: 320px; }
-            .bg-geo-tr { top: -100px; right: -100px; width: 320px; height: 320px; }
+            .bg-geo-tr { top: -100px; right: -100px; }
+            .bg-geo-tr svg { width: 320px; height: 320px; }
             .bg-mbcc-watermark svg { width: 340px; }
 
             /* 假期库存请假按钮文字缩小 */
@@ -350,7 +346,7 @@
             }
             /* 超小屏隐藏背景装饰，避免视觉干扰 */
             .bg-mbcc-bl svg { width: 240px; height: 240px; }
-            .bg-geo-tr { width: 240px; height: 240px; }
+            .bg-geo-tr svg { width: 240px; height: 240px; }
             .bg-mbcc-watermark { display: none; }
         }
 
@@ -560,8 +556,73 @@
         </svg>
     </div>
 
-    <!-- 右上角红色几何装饰 -->
-    <div class="bg-geo-tr" aria-hidden="true"></div>
+    <!-- 右上角雷达装饰 -->
+    <div class="bg-geo-tr" aria-hidden="true">
+        <svg width="520" height="520" viewBox="0 0 520 520" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:0.06;">
+            <!-- 外圈 + 刻度（与左下角一致的线宽） -->
+            <g class="mbcc-ring-spin-slow">
+                <circle cx="260" cy="260" r="220" stroke="#3a5c80" stroke-width="1.5" fill="none"/>
+                <circle cx="260" cy="260" r="216" stroke="#3a5c80" stroke-width="0.5" fill="none" stroke-dasharray="2 10"/>
+                <!-- 主刻度 -->
+                <g stroke="#3a5c80" stroke-width="0.8">
+                    <line x1="260" y1="38" x2="260" y2="50"/><line x1="260" y1="470" x2="260" y2="482"/>
+                    <line x1="482" y1="260" x2="470" y2="260"/><line x1="38" y1="260" x2="50" y2="260"/>
+                    <line x1="415" y1="95" x2="408" y2="103"/><line x1="105" y1="425" x2="112" y2="417"/>
+                    <line x1="415" y1="425" x2="408" y2="417"/><line x1="105" y1="95" x2="112" y2="103"/>
+                </g>
+                <!-- 细刻度 -->
+                <g stroke="#3a5c80" stroke-width="0.4">
+                    <line x1="340" y1="42" x2="337" y2="52"/><line x1="180" y1="478" x2="183" y2="468"/>
+                    <line x1="478" y1="340" x2="468" y2="337"/><line x1="42" y1="180" x2="52" y2="183"/>
+                    <line x1="468" y1="180" x2="458" y2="183"/><line x1="52" y1="340" x2="62" y2="337"/>
+                    <line x1="340" y1="478" x2="337" y2="468"/><line x1="180" y1="42" x2="183" y2="52"/>
+                    <line x1="380" y1="62" x2="376" y2="72"/><line x1="140" y1="458" x2="144" y2="448"/>
+                    <line x1="458" y1="380" x2="448" y2="376"/><line x1="62" y1="140" x2="72" y2="144"/>
+                </g>
+            </g>
+            <!-- 中圈（反向旋转） -->
+            <g class="mbcc-ring-spin-r-slow">
+                <circle cx="260" cy="260" r="170" stroke="#3a5c80" stroke-width="1" fill="none"/>
+                <circle cx="260" cy="260" r="166" stroke="#3a5c80" stroke-width="0.3" fill="none" stroke-dasharray="4 6"/>
+                <!-- 环形文字 -->
+                <path id="mbccRadarTextPath" d="M 260,260 m -152,0 a 152,152 0 1,1 304,0 a 152,152 0 1,1 -304,0" fill="none"/>
+                <text fill="#3a5c80" font-family="JetBrains Mono,monospace" font-size="8" letter-spacing="4">
+                    <textPath href="#mbccRadarTextPath">THREAT DETECTION ACTIVE · SCANNING PERIMETER · SIGNAL ACQUIRED ·</textPath>
+                </text>
+            </g>
+            <!-- 内圈 -->
+            <circle cx="260" cy="260" r="110" stroke="#3a5c80" stroke-width="0.5" fill="none"/>
+            <circle cx="260" cy="260" r="60" stroke="#3a5c80" stroke-width="0.5" fill="none" stroke-dasharray="2 4"/>
+            <!-- 脉冲环 -->
+            <circle cx="260" cy="260" r="140" stroke="#3a5c80" stroke-width="0.8" fill="none" class="mbcc-pulse-ring" opacity="0.2"/>
+            <!-- 十字准星 -->
+            <line x1="260" y1="100" x2="260" y2="420" stroke="#3a5c80" stroke-width="0.3" opacity="0.3"/>
+            <line x1="100" y1="260" x2="420" y2="260" stroke="#3a5c80" stroke-width="0.3" opacity="0.3"/>
+            <!-- 雷达扫描扇面 -->
+            <g class="mbcc-radar-sweep">
+                <defs>
+                    <linearGradient id="radarSweepGrad" gradientTransform="rotate(90)">
+                        <stop offset="0%" stop-color="#3a5c80" stop-opacity="0.35"/>
+                        <stop offset="100%" stop-color="#3a5c80" stop-opacity="0"/>
+                    </linearGradient>
+                </defs>
+                <path d="M 260,260 L 260,40 A 220,220 0 0,1 420,130 Z" fill="url(#radarSweepGrad)"/>
+                <!-- 扫描线 -->
+                <line x1="260" y1="260" x2="260" y2="40" stroke="#3a5c80" stroke-width="1" opacity="0.5"/>
+            </g>
+            <!-- 信号点（跟随扫描闪烁） -->
+            <circle cx="320" cy="160" r="3" fill="#3a5c80" class="mbcc-blip" opacity="0"/>
+            <circle cx="190" cy="200" r="2" fill="#3a5c80" class="mbcc-blip" style="animation-delay:2s;" opacity="0"/>
+            <circle cx="350" cy="300" r="2.5" fill="#3a5c80" class="mbcc-blip" style="animation-delay:4s;" opacity="0"/>
+            <!-- 四角标记（与左下角一致） -->
+            <g stroke="#3a5c80" stroke-width="0.6" opacity="0.5">
+                <polyline points="40,40 40,80" fill="none"/><polyline points="40,40 80,40" fill="none"/>
+                <polyline points="480,40 480,80" fill="none"/><polyline points="480,40 440,40" fill="none"/>
+                <polyline points="40,480 40,440" fill="none"/><polyline points="40,480 80,480" fill="none"/>
+                <polyline points="480,480 480,440" fill="none"/><polyline points="480,480 440,480" fill="none"/>
+            </g>
+        </svg>
+    </div>
 
     <!-- 底部居中 MBCC 水印文字 -->
     <div class="bg-mbcc-watermark" aria-hidden="true">
@@ -595,20 +656,116 @@
 
     <div class="max-w-7xl mx-auto">
         <!-- V1 Dispatch Header -->
-        <div style="position:relative; border-bottom:1px solid #cdc4b1; padding-bottom:24px; margin-bottom:28px;">
+        <div style="position:relative; border-bottom:1px solid #cdc4b1; padding-bottom:24px; margin-bottom:28px; overflow:hidden;">
           <!-- Top thin red rule -->
           <div style="position:absolute; top:-32px; left:0; right:0; height:3px; background:#b3262e;"></div>
 
+          <!-- Banner 背景：狄斯城战术地图 + 狂厄追踪 -->
+          <div style="position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:0;">
+            <svg width="100%" height="100%" viewBox="0 0 1200 300" preserveAspectRatio="xMidYMid slice" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:absolute; inset:0; width:100%; height:100%;">
+              <defs>
+                <linearGradient id="bannerSweepGrad" gradientTransform="rotate(90)">
+                  <stop offset="0%" stop-color="#3a5c80" stop-opacity="0.18"/>
+                  <stop offset="100%" stop-color="#3a5c80" stop-opacity="0"/>
+                </linearGradient>
+                <radialGradient id="threatGlow"><stop offset="0%" stop-color="#7a1a1f" stop-opacity="0.12"/><stop offset="100%" stop-color="#7a1a1f" stop-opacity="0"/></radialGradient>
+              </defs>
+
+              <!-- ===== 狄斯城简化地图 ===== -->
+              <!-- 桥河（横贯中部的河流） -->
+              <path d="M 0,155 C 150,140 300,170 500,155 S 750,130 900,150 S 1050,165 1200,145" stroke="#3a5c80" stroke-width="1.2" opacity="0.07" fill="none"/>
+              <path d="M 0,162 C 150,147 300,177 500,162 S 750,137 900,157 S 1050,172 1200,152" stroke="#3a5c80" stroke-width="0.4" opacity="0.04" fill="none"/>
+
+              <!-- 主干道网格 -->
+              <g stroke="#3a5c80" stroke-width="0.4" opacity="0.05">
+                <!-- 南北纵道 -->
+                <line x1="180" y1="10" x2="200" y2="290"/>
+                <line x1="420" y1="10" x2="400" y2="290"/>
+                <line x1="650" y1="10" x2="660" y2="290"/>
+                <line x1="880" y1="10" x2="870" y2="290"/>
+                <!-- 东西横道 -->
+                <line x1="50" y1="70" x2="1150" y2="75"/>
+                <line x1="30" y1="230" x2="1170" y2="225"/>
+              </g>
+
+              <!-- 城区块面（半透明矩形） -->
+              <g fill="#3a5c80" opacity="0.02">
+                <!-- 圣迪加区 (左上) -->
+                <rect x="80" y="40" width="110" height="80" rx="2"/>
+                <!-- 塔兰广场区 (中左) -->
+                <rect x="230" y="60" width="90" height="65" rx="2"/>
+                <!-- 银河谷桥附近 (中部河边) -->
+                <rect x="350" y="120" width="80" height="50" rx="2"/>
+                <!-- 新城 (右部) -->
+                <rect x="750" y="50" width="130" height="90" rx="2"/>
+                <!-- 贫民区/大杂院 (右下) -->
+                <rect x="680" y="190" width="100" height="70" rx="2"/>
+                <!-- 南部城区 -->
+                <rect x="150" y="190" width="120" height="75" rx="2"/>
+                <rect x="460" y="200" width="90" height="60" rx="2"/>
+              </g>
+
+              <!-- 区域标注（极淡） -->
+              <g font-family="JetBrains Mono,monospace" font-size="6" fill="#3a5c80" opacity="0.06" letter-spacing="1">
+                <text x="100" y="55">S.DIGA</text>
+                <text x="245" y="75">TALAN SQ</text>
+                <text x="360" y="138">BRIDGE</text>
+                <text x="775" y="68">NEW CITY</text>
+                <text x="695" y="208">SECTOR-7</text>
+                <text x="170" y="208">SOUTH</text>
+              </g>
+
+              <!-- 追踪路线（地图1中的虚线路线） -->
+              <path d="M 120,90 L 260,85 L 390,140 L 500,155 L 650,148 L 790,80" stroke="#3a5c80" stroke-width="0.6" opacity="0.06" fill="none" stroke-dasharray="5 4" class="mbcc-route-anim"/>
+
+              <!-- ===== 雷达覆盖层（右侧） ===== -->
+              <circle cx="1020" cy="150" r="110" stroke="#3a5c80" stroke-width="0.6" opacity="0.06" fill="none"/>
+              <circle cx="1020" cy="150" r="70" stroke="#3a5c80" stroke-width="0.4" opacity="0.04" fill="none" stroke-dasharray="3 5"/>
+              <circle cx="1020" cy="150" r="35" stroke="#3a5c80" stroke-width="0.3" opacity="0.03" fill="none"/>
+              <line x1="1020" y1="35" x2="1020" y2="265" stroke="#3a5c80" stroke-width="0.25" opacity="0.04"/>
+              <line x1="905" y1="150" x2="1135" y2="150" stroke="#3a5c80" stroke-width="0.25" opacity="0.04"/>
+              <!-- 雷达扫描 -->
+              <g class="mbcc-radar-sweep" style="transform-origin:1020px 150px;">
+                <path d="M 1020,150 L 1020,40 A 110,110 0 0,1 1100,90 Z" fill="url(#bannerSweepGrad)" opacity="0.5"/>
+                <line x1="1020" y1="150" x2="1020" y2="40" stroke="#3a5c80" stroke-width="0.5" opacity="0.12"/>
+              </g>
+
+              <!-- ===== 狂厄威胁标记（红色脉冲点） ===== -->
+              <!-- 塔兰广场附近 — 活跃威胁 -->
+              <circle cx="270" cy="90" r="3" fill="#7a1a1f" class="mbcc-threat" opacity="0.5"/>
+              <circle cx="270" cy="90" r="8" stroke="#7a1a1f" stroke-width="0.5" fill="none" class="mbcc-pulse-ring" opacity="0.15"/>
+              <!-- 银河谷桥 — 监测中 -->
+              <circle cx="390" cy="145" r="2.5" fill="#7a1a1f" class="mbcc-threat" style="animation-delay:0.8s;" opacity="0.4"/>
+              <!-- 新城区 — 疑似活动 -->
+              <circle cx="810" cy="95" r="2" fill="#7a1a1f" class="mbcc-threat" style="animation-delay:1.5s;" opacity="0.35"/>
+              <!-- 贫民区 — 已确认 -->
+              <circle cx="730" cy="225" r="3" fill="#7a1a1f" class="mbcc-threat" style="animation-delay:2s;" opacity="0.45"/>
+              <circle cx="730" cy="225" r="9" stroke="#7a1a1f" stroke-width="0.4" fill="none" class="mbcc-pulse-ring" style="animation-delay:1s;" opacity="0.12"/>
+
+              <!-- 雷达拾取信号（蓝色） -->
+              <circle cx="960" cy="100" r="1.8" fill="#3a5c80" class="mbcc-blip" opacity="0"/>
+              <circle cx="1060" cy="200" r="1.5" fill="#3a5c80" class="mbcc-blip" style="animation-delay:3s;" opacity="0"/>
+
+              <!-- 角落坐标框 -->
+              <g stroke="#3a5c80" stroke-width="0.4" opacity="0.05">
+                <polyline points="15,15 15,35" fill="none"/><polyline points="15,15 35,15" fill="none"/>
+                <polyline points="1185,15 1185,35" fill="none"/><polyline points="1185,15 1165,15" fill="none"/>
+                <polyline points="15,285 15,265" fill="none"/><polyline points="15,285 35,285" fill="none"/>
+                <polyline points="1185,285 1185,265" fill="none"/><polyline points="1185,285 1165,285" fill="none"/>
+              </g>
+            </svg>
+          </div>
+
           <!-- Meta strip: doc code left, status right -->
-          <div style="display:flex; justify-content:space-between; font-size:10px; color:#8a8378; letter-spacing:0.16em; text-transform:uppercase; margin-bottom:14px; font-family:'JetBrains Mono',monospace;">
-            <span>FILE · MBCC-L244-001-REV.00122-477</span>
-            <span style="display:flex; align-items:center; gap:8px;">
-              <span style="width:6px; height:6px; background:#b3262e; border-radius:50%;"></span>
-              TRANSMITTING · ON DUTY
+          <div class="mbcc-label" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; gap:8px; min-width:0; position:relative; z-index:1;">
+            <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;">FILE · MBCC-L244-001-REV.00122-477</span>
+            <span style="display:flex; align-items:center; gap:6px; white-space:nowrap; flex-shrink:0;">
+              <span style="width:5px; height:5px; background:#b3262e; border-radius:50%; flex-shrink:0;"></span>
+              ON DUTY
             </span>
           </div>
 
-          <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px; flex-wrap:wrap;">
+          <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px; flex-wrap:wrap; position:relative; z-index:1;">
             <div style="display:flex; align-items:flex-start; gap:20px;">
               <!-- Avatar with circular clip -->
               <div style="position:relative; flex-shrink:0; cursor:pointer;" onclick="document.getElementById('avatarInput').click()" title="点击更换头像">
@@ -882,14 +1039,14 @@
                         <div id="todayWorkStatus" class="mbcc-label mbcc-label-sm" style="margin-top:6px;">0% · OF 6H TARGET</div>
                     </div>
                     <!-- Sick / Personal -->
-                    <div style="padding:14px 16px;">
+                    <div style="padding:14px 16px; overflow:hidden;">
                         <div class="mbcc-label" style="margin-bottom:8px;">SICK · PERSONAL</div>
-                        <div id="leaveUsedDisplay" style="display:flex; align-items:baseline; gap:6px;">
-                            <span id="sickCount" style="font-family:'Big Shoulders Display',sans-serif; font-size:42px; font-weight:900; line-height:1; color:#1a1814;">0</span>
-                            <span style="font-family:'JetBrains Mono',monospace; font-size:9px; color:#8a8378; letter-spacing:0.08em;">SICK</span>
-                            <span style="font-family:'Big Shoulders Display',sans-serif; font-size:22px; color:#cdc4b1; margin:0 2px;">/</span>
-                            <span id="personalCount" style="font-family:'Big Shoulders Display',sans-serif; font-size:42px; font-weight:900; line-height:1; color:#1a1814;">0</span>
-                            <span style="font-family:'JetBrains Mono',monospace; font-size:9px; color:#8a8378; letter-spacing:0.08em;">PERSONAL</span>
+                        <div id="leaveUsedDisplay" style="display:flex; align-items:baseline; gap:3px; flex-wrap:nowrap;">
+                            <span id="sickCount" style="font-family:'Big Shoulders Display',sans-serif; font-size:clamp(24px,5vw,42px); font-weight:900; line-height:1; color:#1a1814;">0</span>
+                            <span style="font-family:'JetBrains Mono',monospace; font-size:clamp(6px,1vw,9px); color:#8a8378; letter-spacing:0.04em;">SICK</span>
+                            <span style="font-family:'Big Shoulders Display',sans-serif; font-size:clamp(14px,3vw,22px); color:#cdc4b1; margin:0 1px;">/</span>
+                            <span id="personalCount" style="font-family:'Big Shoulders Display',sans-serif; font-size:clamp(24px,5vw,42px); font-weight:900; line-height:1; color:#1a1814;">0</span>
+                            <span style="font-family:'JetBrains Mono',monospace; font-size:clamp(6px,1vw,9px); color:#8a8378; letter-spacing:0.04em;">PERS</span>
                         </div>
                         <div id="leaveRemainDetail" class="mbcc-label mbcc-label-sm" style="margin-top:8px;">DOES NOT AFFECT BALANCE</div>
                     </div>
@@ -1654,48 +1811,33 @@
             try {
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
                 const t = ctx.currentTime;
+                const tone = (freq, start, dur, wave, vol) => {
+                    const o = ctx.createOscillator(), g = ctx.createGain();
+                    o.type = wave; o.frequency.setValueAtTime(freq, t + start);
+                    g.gain.setValueAtTime(vol, t + start);
+                    g.gain.exponentialRampToValueAtTime(0.0001, t + start + dur);
+                    o.connect(g); g.connect(ctx.destination);
+                    o.start(t + start); o.stop(t + start + dur + 0.01);
+                };
+
                 if (type === 'start') {
-                    // 签到：短促电子确认音 — 低频嗡鸣 + 双音上升
-                    const sub = ctx.createOscillator();
-                    const subG = ctx.createGain();
-                    sub.type = 'sine'; sub.frequency.value = 80;
-                    subG.gain.setValueAtTime(0.15, t);
-                    subG.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
-                    sub.connect(subG); subG.connect(ctx.destination);
-                    sub.start(t); sub.stop(t + 0.16);
-                    // 确认双音
-                    [[440, 0.05, 'square'], [660, 0.15, 'square']].forEach(([f, d, w]) => {
-                        const o = ctx.createOscillator(); const g = ctx.createGain();
-                        o.type = w; o.frequency.value = f;
-                        g.gain.setValueAtTime(0.08, t + d);
-                        g.gain.exponentialRampToValueAtTime(0.001, t + d + 0.12);
-                        o.connect(g); g.connect(ctx.destination);
-                        o.start(t + d); o.stop(t + d + 0.14);
-                    });
-                    // 噪声脉冲（机械质感）
-                    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.04, ctx.sampleRate);
-                    const nd = buf.getChannelData(0);
-                    for (let i = 0; i < nd.length; i++) nd[i] = (Math.random()*2-1) * Math.exp(-i/(ctx.sampleRate*0.008));
-                    const ns = ctx.createBufferSource(); ns.buffer = buf;
-                    const ng = ctx.createGain(); ng.gain.value = 0.1;
-                    ns.connect(ng); ng.connect(ctx.destination); ns.start(t);
+                    // === 签到：轻柔电子确认 ===
+                    // 数据处理 — 细碎高频点击声（模拟代码编译）
+                    [0, 0.035, 0.06, 0.09].forEach(d => tone(4200 + Math.random()*800, d, 0.015, 'sine', 0.02));
+                    // 柔和上行双音 — 确认
+                    tone(698, 0.12, 0.12, 'sine', 0.05);   // F5
+                    tone(880, 0.22, 0.18, 'sine', 0.05);   // A5
+                    // 极轻泛音光泽
+                    tone(1760, 0.24, 0.10, 'sine', 0.015);
                 } else {
-                    // 签退：下行三音 + 深沉关闭感
-                    [[580, 0, 'square'], [440, 0.1, 'square'], [330, 0.2, 'triangle']].forEach(([f,d,w]) => {
-                        const o = ctx.createOscillator(); const g = ctx.createGain();
-                        o.type = w; o.frequency.value = f;
-                        g.gain.setValueAtTime(0.08, t+d);
-                        g.gain.exponentialRampToValueAtTime(0.001, t+d+0.18);
-                        o.connect(g); g.connect(ctx.destination);
-                        o.start(t+d); o.stop(t+d+0.2);
-                    });
-                    // 低频余韵
-                    const sub = ctx.createOscillator(); const subG = ctx.createGain();
-                    sub.type = 'sine'; sub.frequency.value = 65;
-                    subG.gain.setValueAtTime(0.12, t+0.2);
-                    subG.gain.exponentialRampToValueAtTime(0.001, t+0.5);
-                    sub.connect(subG); subG.connect(ctx.destination);
-                    sub.start(t+0.2); sub.stop(t+0.55);
+                    // === 签退：轻柔电子归档 ===
+                    // 数据写入 — 快速细碎点击
+                    [0, 0.03, 0.055].forEach(d => tone(3800 + Math.random()*600, d, 0.012, 'sine', 0.018));
+                    // 柔和下行双音 — 完成
+                    tone(880, 0.10, 0.12, 'sine', 0.045);  // A5
+                    tone(659, 0.20, 0.20, 'sine', 0.045);  // E5
+                    // 轻柔尾韵
+                    tone(330, 0.28, 0.25, 'sine', 0.025);  // E4
                 }
                 setTimeout(() => ctx.close(), 1500);
             } catch(e) { /* 静音降级 */ }
