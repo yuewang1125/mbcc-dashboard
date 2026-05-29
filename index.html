@@ -6,6 +6,9 @@
     <title>MBCC局长值班系统</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=Big+Shoulders+Display:wght@700;900&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;700&family=Cormorant+Garamond:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
     <script>
         tailwind.config = {
@@ -31,7 +34,8 @@
     </script>
     <style>
         body { background: #f3efe6; min-height: 100vh; color: #1a1814; font-family: 'IBM Plex Sans', 'Noto Sans SC', sans-serif; }
-        body::before { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0; background-image: linear-gradient(#cdc4b1 1px, transparent 1px), linear-gradient(90deg, #cdc4b1 1px, transparent 1px); background-size: 40px 40px; opacity: 0.12; }
+        #mbcc-bg-layer { position: fixed; inset: 0; z-index: -1; background: url('dis_map.png') no-repeat center top; background-size: cover; }
+        #mbcc-bg-layer::after { content: ''; position: absolute; inset: 0; background: rgba(243,239,230,0.15); }
 
         /* MBCC 背景装饰层 */
         .bg-mbcc-bl, .bg-geo-tr, .bg-mbcc-watermark {
@@ -39,6 +43,7 @@
             pointer-events: none;
             z-index: 0;
         }
+        .max-w-7xl { position: relative; z-index: 1; }
         .bg-mbcc-bl { bottom: -60px; left: -60px; }
         .bg-geo-tr {
             top: -60px; right: -60px;
@@ -88,14 +93,133 @@
             font-size: clamp(5.5px, 1vw, 8px);
             letter-spacing: clamp(0.02em, 0.6vw, 0.12em);
         }
+
+        /* === Page Navigation === */
+        .mbcc-nav {
+            display: flex; gap: 0; border: 1px solid rgba(205,196,177,0.7); margin-bottom: 20px;
+            font-family: 'JetBrains Mono', monospace;
+            background: rgba(251,248,240,0.78);
+        }
+        .mbcc-nav-btn {
+            flex: 1; padding: 10px 16px; border: none; border-right: 1px solid #cdc4b1;
+            background: transparent; color: #8a8378; font-size: 10px; letter-spacing: 0.18em;
+            text-transform: uppercase; cursor: pointer; transition: all 0.2s;
+            font-family: 'JetBrains Mono', monospace; display: flex; align-items: center;
+            justify-content: center; gap: 6px;
+        }
+        .mbcc-nav-btn:last-child { border-right: none; }
+        .mbcc-nav-btn:hover { background: #ebe5d6; color: #1a1814; }
+        .mbcc-nav-btn.active {
+            background: #1a1814; color: #f3efe6; position: relative;
+        }
+        .mbcc-nav-btn.active::after {
+            content: ''; position: absolute; bottom: -1px; left: 20%; right: 20%;
+            height: 2px; background: #b3262e;
+        }
+        .mbcc-nav-btn .nav-icon { font-size: 11px; }
+        .mbcc-nav-btn .nav-count {
+            font-size: 8px; background: #b3262e; color: #f3efe6;
+            padding: 1px 5px; min-width: 14px; text-align: center;
+        }
+        /* Page containers */
+        .mbcc-page { display: none; }
+        .mbcc-page.active { display: block; }
+
+        /* === Conference Sub-tabs === */
+        .conf-subtab-nav {
+            display: flex; gap: 0; border-bottom: 1px solid #cdc4b1; margin-bottom: 16px;
+        }
+        .conf-subtab {
+            padding: 8px 18px; border: none; background: transparent; color: #8a8378;
+            font-family: 'JetBrains Mono', monospace; font-size: 9.5px; letter-spacing: 0.14em;
+            text-transform: uppercase; cursor: pointer; transition: all 0.2s; position: relative;
+        }
+        .conf-subtab:hover { color: #1a1814; }
+        .conf-subtab.active { color: #1a1814; font-weight: 600; }
+        .conf-subtab.active::after {
+            content: ''; position: absolute; bottom: -1px; left: 12px; right: 12px;
+            height: 2px; background: #b3262e;
+        }
+        .conf-subtab .tab-soon {
+            font-size: 7px; background: #cdc4b1; color: #fbf8f0; padding: 0 4px;
+            margin-left: 4px; vertical-align: middle; letter-spacing: 0.04em;
+        }
+        .conf-tab-pane { display: none; }
+        .conf-tab-pane.active { display: block; }
+        /* Conference card expand */
+        .conf-entry { border: 1px solid rgba(205,196,177,0.5); margin-bottom: 10px; transition: all 0.2s; background: rgba(251,248,240,0.52); }
+        .conf-entry:hover { border-color: #8a8378; }
+        .conf-entry-header { padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: flex-start; }
+        .conf-entry-body { display: none; padding: 0 16px 14px; border-top: 1px solid #ebe5d6; }
+        .conf-entry.expanded .conf-entry-body { display: block; }
+        .conf-entry .expand-chevron { transition: transform 0.2s; font-size: 10px; color: #cdc4b1; }
+        .conf-entry.expanded .expand-chevron { transform: rotate(90deg); }
+        /* Note card */
+        .note-card { border: 1px solid #ebe5d6; padding: 10px 12px; margin-top: 8px; border-left: 3px solid #3a5c80; background: rgba(251,248,240,0.85); }
+        /* Person chip */
+        .person-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid #cdc4b1; font-size: 10px; color: #56514a; font-family: 'JetBrains Mono', monospace; margin: 2px 2px 0 0; cursor: default; }
+        .person-chip .chip-avatar { width: 16px; height: 16px; background: #1a1814; color: #f3efe6; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; }
+        /* Tag chip */
+        .tag-chip { display: inline-block; padding: 1px 6px; background: #3a5c80; color: #f3efe6; font-size: 8px; font-family: 'JetBrains Mono', monospace; margin: 2px 2px 0 0; letter-spacing: 0.06em; }
+        /* MBCC form input style */
+        .mbcc-input { width: 100%; padding: 8px 10px; border: 1px solid #cdc4b1; background: #fbf8f0; font-size: 12px; color: #1a1814; box-sizing: border-box; font-family: inherit; }
+        .mbcc-input:focus { outline: none; border-color: #3a5c80; }
+        .mbcc-btn-primary { padding: 10px 16px; background: #b3262e; color: #f3efe6; border: none; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.14em; cursor: pointer; }
+        .mbcc-btn-dark { padding: 8px 16px; background: #1a1814; color: #f3efe6; border: none; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.12em; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+
+        /* === Phase 2: Collection Cards === */
+        .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; }
+        .gacha-card {
+            perspective: 600px; cursor: pointer; height: 220px;
+        }
+        .gacha-card-inner {
+            position: relative; width: 100%; height: 100%;
+            transition: transform 0.6s; transform-style: preserve-3d;
+        }
+        .gacha-card.flipped .gacha-card-inner { transform: rotateY(180deg); }
+        .gacha-card-front, .gacha-card-back {
+            position: absolute; inset: 0; backface-visibility: hidden;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 12px; border: 1px solid rgba(205,196,177,0.7); background: rgba(251,248,240,0.8);
+        }
+        .gacha-card-back { transform: rotateY(180deg); text-align: center; }
+        .gacha-card[data-rarity="1"] { }
+        .gacha-card[data-rarity="2"] .gacha-card-front { border: 2px solid #3a5c80; box-shadow: 0 0 10px rgba(58,92,128,0.15); }
+        .gacha-card[data-rarity="3"] .gacha-card-front { border: 2px solid #b3262e; box-shadow: 0 0 14px rgba(179,38,46,0.2), inset 0 0 20px rgba(179,38,46,0.03); }
+        .gacha-avatar {
+            width: 72px; height: 72px; border-radius: 50%; background: #1a1814; color: #f3efe6;
+            display: flex; align-items: center; justify-content: center;
+            font-family: 'Big Shoulders Display', sans-serif; font-size: 28px; font-weight: 900;
+            margin-bottom: 8px; flex-shrink: 0; overflow: hidden;
+        }
+        .gacha-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .gacha-stars { color: #c08a3a; font-size: 10px; letter-spacing: 2px; margin-bottom: 4px; }
+        .gacha-name { font-size: 12px; font-weight: 700; color: #1a1814; text-align: center; line-height: 1.3; }
+        .gacha-org { font-size: 9px; color: #8a8378; font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
+        .rarity-btn { padding: 4px 10px; border: 1px solid #cdc4b1; background: transparent; font-family: 'JetBrains Mono', monospace; font-size: 9px; cursor: pointer; color: #8a8378; }
+        .rarity-btn.active { background: #1a1814; color: #f3efe6; border-color: #1a1814; }
+
+        /* === Phase 3: Network Graph === */
+        #networkSvg { width: 100%; background: rgba(248,245,237,0.4); border: 1px solid #cdc4b1; }
+        .net-node { cursor: pointer; }
+        .net-node text { font-family: 'JetBrains Mono', monospace; font-size: 9px; fill: #1a1814; pointer-events: none; }
+        .net-link { stroke: #cdc4b1; stroke-opacity: 0.6; }
+        .net-tooltip { position: absolute; background: #1a1814; color: #f3efe6; padding: 6px 10px; font-family: 'JetBrains Mono', monospace; font-size: 10px; pointer-events: none; z-index: 100; max-width: 200px; display: none; }
+
+        /* === Phase 4: Map === */
+        #intelMap { height: 400px; width: 100%; border: 1px solid rgba(205,196,177,0.5); background: rgba(248,245,237,0.5); }
+        .map-legend { display: flex; gap: 14px; margin-top: 8px; font-family: 'JetBrains Mono', monospace; font-size: 9px; color: #8a8378; }
+        .map-legend span::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 4px; vertical-align: middle; }
+        .map-legend .leg-conf::before { background: #b3262e; }
+        .map-legend .leg-person::before { background: #3a5c80; }
         .timer-pulse { animation: pulseGlow 1.2s infinite; }
         @keyframes pulseGlow { 0% { box-shadow: 0 0 0 0 rgba(179, 38, 46, 0.6); } 70% { box-shadow: 0 0 0 8px rgba(179, 38, 46, 0); } 100% { box-shadow: 0 0 0 0 rgba(179, 38, 46, 0); } }
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.25); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; z-index: 1000; visibility: hidden; opacity: 0; transition: visibility 0.2s, opacity 0.2s; }
         .modal-overlay.active { visibility: visible; opacity: 1; }
-        .modal-content { background: #fbf8f0; border-radius: 0; max-width: 90vw; width: 420px; max-height: 70vh; overflow-y: auto; box-shadow: 0 30px 80px rgba(0,0,0,0.2); border-top: 2px solid #1a1814; clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 0 100%); }
+        .modal-content { background: rgba(251,248,240,0.88); border-radius: 0; max-width: 90vw; width: 420px; max-height: 70vh; overflow-y: auto; box-shadow: 0 30px 80px rgba(0,0,0,0.2); border-top: 2px solid #1a1814; }
 
-        .draggable-module { position: relative; transition: all 0.3s ease; background: #fbf8f0; border: 1px solid #cdc4b1; border-top: 2px solid #1a1814; border-radius: 0; clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%); min-height: 200px; min-width: 280px; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
-        .draggable-module::after { content: ''; position: absolute; top: 0; right: 0; width: 14px; height: 14px; background: #b3262e; clip-path: polygon(0 0, 100% 0, 100% 100%); pointer-events: none; z-index: 1; }
+        .draggable-module { position: relative; transition: all 0.3s ease; background: rgba(251,248,240,0.78); border: 1px solid rgba(205,196,177,0.5); border-top: 2px solid rgba(26,24,20,0.8); border-radius: 0; min-height: 200px; min-width: 280px; box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
+        .draggable-module::after { content: ''; position: absolute; top: -1px; right: -1px; width: 14px; height: 14px; background: #b3262e; clip-path: polygon(0 0, 100% 0, 100% 100%); pointer-events: none; z-index: 1; }
         .module-controls { opacity: 0; pointer-events: none; transition: opacity 0.2s; }
         .edit-mode .module-controls { opacity: 1; pointer-events: auto; }
         .edit-mode .module-wrapper .draggable-module { outline: 2px dashed rgba(179, 38, 46, 0.5); outline-offset: 4px; }
@@ -332,6 +456,12 @@
             .mod-label { font-size: 7px !important; letter-spacing: 0.1em !important; }
         }
 
+        /* Task board mobile */
+        @media (max-width: 768px) {
+            #taskBoard { grid-template-columns: 1fr !important; }
+            .mbcc-nav-btn { font-size: 9px; letter-spacing: 0.08em; padding: 8px 6px; }
+            .mbcc-nav-btn .nav-icon { font-size: 10px; }
+        }
         /* Extra small phones */
         @media (max-width: 420px) {
             .draggable-module .grid.lg\\:grid-cols-4 {
@@ -508,6 +638,7 @@
     </style>
 </head>
 <body class="font-sans p-4 md:p-6 lg:p-8">
+    <div id="mbcc-bg-layer"></div>
     <!-- MBCC Logo 背景装饰 — 左下角蓝色 -->
     <div class="bg-mbcc-bl" aria-hidden="true">
         <svg width="520" height="520" viewBox="0 0 520 520" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:0.06;">
@@ -656,7 +787,7 @@
 
     <div class="max-w-7xl mx-auto">
         <!-- V1 Dispatch Header -->
-        <div style="position:relative; border-bottom:1px solid #cdc4b1; padding-bottom:24px; margin-bottom:28px; overflow:hidden;">
+        <div style="position:relative; border-bottom:1px solid rgba(205,196,177,0.7); padding-bottom:24px; margin-bottom:28px; overflow:hidden; background:rgba(251,248,240,0.65); padding:20px 24px; margin:-16px -16px 28px; padding-top:36px;">
           <!-- Top thin red rule -->
           <div style="position:absolute; top:-32px; left:0; right:0; height:3px; background:#b3262e;"></div>
 
@@ -891,7 +1022,24 @@
             </div>
         </div>
 
+
+        <!-- ========== Page Navigation ========== -->
+        <nav class="mbcc-nav" id="mbccNav">
+            <button class="mbcc-nav-btn active" onclick="navigateTo('dashboard')" data-page="dashboard">
+                <i class="fas fa-th-large nav-icon"></i> DASHBOARD
+            </button>
+            <button class="mbcc-nav-btn" onclick="navigateTo('conference')" data-page="conference">
+                <i class="fas fa-users nav-icon"></i> CONFERENCE
+                <span class="nav-count" id="confCount" style="display:none;">0</span>
+            </button>
+            <button class="mbcc-nav-btn" onclick="navigateTo('tasks')" data-page="tasks">
+                <i class="fas fa-tasks nav-icon"></i> TASKS
+                <span class="nav-count" id="taskCount" style="display:none;">0</span>
+            </button>
+        </nav>
+
         <!-- ========== Dashboard Modules ========== -->
+        <div id="page-dashboard" class="mbcc-page active">
         <div id="dashboard-container" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
             <!-- Module: 作息打卡 -->
@@ -908,7 +1056,7 @@
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <!-- 早班：绿色系 -->
-                    <div class="p-3 border border-[#cdc4b1]" style="background: #fbf8f0; border-top: 3px solid #4b8a6c;">
+                    <div class="p-3 border border-[#cdc4b1]" style="background: rgba(251,248,240,0.52); border-top: 3px solid #4b8a6c;">
                         <div class="flex items-center justify-between mb-2">
                             <h3 class="font-bold text-[#4b8a6c] text-sm flex items-center gap-1"><i class="fas fa-sun"></i> <span class="module-title" data-module="period-morning" data-default="早班值守">早班值守</span></h3>
                             <span class="text-[10px] text-[#8a8378] font-mono-dispatch tracking-wider module-title" data-module="period-morning-time" data-default="08:00-12:00">08:00-12:00</span>
@@ -921,7 +1069,7 @@
                         <div id="morning" class="text-[11px] p-1.5 text-[#56514a] font-mono border border-[#cdc4b1] min-h-[44px]" style="background:#f3efe6;">始: -  终: -</div>
                     </div>
                     <!-- 午班：钢蓝色系 -->
-                    <div class="p-3 border border-[#cdc4b1]" style="background: #fbf8f0; border-top: 3px solid #3a5c80;">
+                    <div class="p-3 border border-[#cdc4b1]" style="background: rgba(251,248,240,0.52); border-top: 3px solid #3a5c80;">
                         <div class="flex items-center justify-between mb-2">
                             <h3 class="font-bold text-[#3a5c80] text-sm flex items-center gap-1"><i class="fas fa-cloud-sun"></i> <span class="module-title" data-module="period-afternoon" data-default="午班值守">午班值守</span></h3>
                             <span class="text-[10px] text-[#8a8378] font-mono-dispatch tracking-wider module-title" data-module="period-afternoon-time" data-default="12:00-18:00">12:00-18:00</span>
@@ -934,7 +1082,7 @@
                         <div id="afternoon" class="text-[11px] p-1.5 text-[#56514a] font-mono border border-[#cdc4b1] min-h-[44px]" style="background:#f3efe6;">始: -  终: -</div>
                     </div>
                     <!-- 晚班：琥珀色系 -->
-                    <div class="p-3 border border-[#cdc4b1]" style="background: #fbf8f0; border-top: 3px solid #c08a3a;">
+                    <div class="p-3 border border-[#cdc4b1]" style="background: rgba(251,248,240,0.52); border-top: 3px solid #c08a3a;">
                         <div class="flex items-center justify-between mb-2">
                             <h3 class="font-bold text-[#c08a3a] text-sm flex items-center gap-1"><i class="fas fa-moon"></i> <span class="module-title" data-module="period-evening" data-default="晚班值守">晚班值守</span></h3>
                             <span class="text-[10px] text-[#8a8378] font-mono-dispatch tracking-wider module-title" data-module="period-evening-time" data-default="18:00-23:00">18:00-23:00</span>
@@ -947,7 +1095,7 @@
                         <div id="evening" class="text-[11px] p-1.5 text-[#56514a] font-mono border border-[#cdc4b1] min-h-[44px]" style="background:#f3efe6;">始: -  终: -</div>
                     </div>
                     <!-- 深夜：灰色系 -->
-                    <div class="p-3 border border-[#cdc4b1]" style="background: #fbf8f0; border-top: 3px solid #7a7280;">
+                    <div class="p-3 border border-[#cdc4b1]" style="background: rgba(251,248,240,0.52); border-top: 3px solid #7a7280;">
                         <div class="flex items-center justify-between mb-2">
                             <h3 class="font-bold text-[#7a7280] text-sm flex items-center gap-1"><i class="fas fa-star"></i> <span class="module-title" data-module="period-night" data-default="深夜加班">深夜加班</span></h3>
                             <span class="text-[10px] text-[#8a8378] font-mono-dispatch tracking-wider module-title" data-module="period-night-time" data-default="23:00-次日">23:00-次日</span>
@@ -1016,7 +1164,7 @@
                 </div>
 
                 <!-- Three stat cards -->
-                <div id="holidayStatGrid" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0; border:1px solid #cdc4b1; margin-bottom:16px;">
+                <div id="holidayStatGrid" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0; border:1px solid rgba(205,196,177,0.5); margin-bottom:16px; background:rgba(251,248,240,0.42);">
                     <!-- Unified Balance -->
                     <div style="padding:14px 16px; border-right:1px solid #cdc4b1;">
                         <div class="mbcc-label" style="margin-bottom:8px;">UNIFIED BALANCE · TOTAL DAYS</div>
@@ -1054,9 +1202,9 @@
 
                 <!-- Leave action buttons -->
                 <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:16px;">
-                    <button onclick="applyLeave('sick')" style="display:flex; align-items:center; justify-content:center; gap:6px; padding:10px 0; border:1px solid #cdc4b1; background:#fbf8f0; color:#56514a; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.12em; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.borderColor='#3a5c80';this.style.color='#3a5c80'" onmouseout="this.style.borderColor='#cdc4b1';this.style.color='#56514a'"><i class="fas fa-notes-medical"></i> 病假 SICK</button>
-                    <button onclick="applyLeave('personal')" style="display:flex; align-items:center; justify-content:center; gap:6px; padding:10px 0; border:1px solid #cdc4b1; background:#fbf8f0; color:#56514a; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.12em; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.borderColor='#c08a3a';this.style.color='#c08a3a'" onmouseout="this.style.borderColor='#cdc4b1';this.style.color='#56514a'"><i class="fas fa-user-clock"></i> 事假 PERSONAL</button>
-                    <button onclick="applyLeave('annual')" style="display:flex; align-items:center; justify-content:center; gap:6px; padding:10px 0; border:1px solid #b3262e; background:#fbf8f0; color:#b3262e; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.12em; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.background='#b3262e';this.style.color='#f3efe6'" onmouseout="this.style.background='#fbf8f0';this.style.color='#b3262e'"><i class="fas fa-umbrella-beach"></i> 年假 ANNUAL</button>
+                    <button onclick="applyLeave('sick')" style="display:flex; align-items:center; justify-content:center; gap:6px; padding:10px 0; border:1px solid #cdc4b1; background:rgba(251,248,240,0.6); color:#56514a; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.12em; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.borderColor='#3a5c80';this.style.color='#3a5c80'" onmouseout="this.style.borderColor='#cdc4b1';this.style.color='#56514a'"><i class="fas fa-notes-medical"></i> 病假 SICK</button>
+                    <button onclick="applyLeave('personal')" style="display:flex; align-items:center; justify-content:center; gap:6px; padding:10px 0; border:1px solid #cdc4b1; background:rgba(251,248,240,0.6); color:#56514a; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.12em; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.borderColor='#c08a3a';this.style.color='#c08a3a'" onmouseout="this.style.borderColor='#cdc4b1';this.style.color='#56514a'"><i class="fas fa-user-clock"></i> 事假 PERSONAL</button>
+                    <button onclick="applyLeave('annual')" style="display:flex; align-items:center; justify-content:center; gap:6px; padding:10px 0; border:1px solid #b3262e; background:rgba(251,248,240,0.6); color:#b3262e; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.12em; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.background='#b3262e';this.style.color='#f3efe6'" onmouseout="this.style.background='#fbf8f0';this.style.color='#b3262e'"><i class="fas fa-umbrella-beach"></i> 年假 ANNUAL</button>
                 </div>
                 <div id="todayLeaveStatus" style="font-family:'JetBrains Mono',monospace; font-size:9px; color:#8a8378; letter-spacing:0.1em; text-align:center; margin-bottom:16px;"></div>
 
@@ -1110,7 +1258,7 @@
                             <span class="mbcc-label">MINUTES</span>
                         </div>
                         <div id="focusCatInputs"></div>
-                        <button onclick="clearFocusCatDay()" style="width:100%; margin-top:8px; padding:6px 0; border:1px solid #cdc4b1; background:#fbf8f0; color:#8a8378; font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.12em; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.borderColor='#b3262e';this.style.color='#b3262e'" onmouseout="this.style.borderColor='#cdc4b1';this.style.color='#8a8378'"><i class="fas fa-eraser" style="margin-right:4px;"></i>CLEAR DAY</button>
+                        <button onclick="clearFocusCatDay()" style="width:100%; margin-top:8px; padding:6px 0; border:1px solid #cdc4b1; background:rgba(251,248,240,0.6); color:#8a8378; font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.12em; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.borderColor='#b3262e';this.style.color='#b3262e'" onmouseout="this.style.borderColor='#cdc4b1';this.style.color='#8a8378'"><i class="fas fa-eraser" style="margin-right:4px;"></i>CLEAR DAY</button>
                     </div>
 
                     <!-- Right: Pie + Legend Table + Trend -->
@@ -1148,9 +1296,9 @@
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                                 <span class="mbcc-label">TREND · <span id="focusTrendRangeLabel">14</span>-DAY TREND</span>
                                 <div style="display:flex; gap:0;">
-                                    <button onclick="setFocusCatTrendRange(7)" class="focus-trend-btn" data-range="7" style="padding:3px 8px; border:1px solid #cdc4b1; background:#fbf8f0; color:#8a8378; font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.08em; cursor:pointer;">7D</button>
+                                    <button onclick="setFocusCatTrendRange(7)" class="focus-trend-btn" data-range="7" style="padding:3px 8px; border:1px solid #cdc4b1; background:rgba(251,248,240,0.6); color:#8a8378; font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.08em; cursor:pointer;">7D</button>
                                     <button onclick="setFocusCatTrendRange(14)" class="focus-trend-btn" data-range="14" style="padding:3px 8px; border:1px solid #1a1814; background:#1a1814; color:#f3efe6; font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.08em; cursor:pointer;">14D</button>
-                                    <button onclick="setFocusCatTrendRange(30)" class="focus-trend-btn" data-range="30" style="padding:3px 8px; border:1px solid #cdc4b1; background:#fbf8f0; color:#8a8378; font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.08em; cursor:pointer;">30D</button>
+                                    <button onclick="setFocusCatTrendRange(30)" class="focus-trend-btn" data-range="30" style="padding:3px 8px; border:1px solid #cdc4b1; background:rgba(251,248,240,0.6); color:#8a8378; font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.08em; cursor:pointer;">30D</button>
                                 </div>
                             </div>
                             <div id="focusCatTrendSelectors" style="display:none;"></div>
@@ -1170,12 +1318,309 @@
 
         </div>
 
+        </div><!-- /page-dashboard -->
+
+        <!-- ========== Conference Page ========== -->
+        <div id="page-conference" class="mbcc-page">
+            <div class="module-wrapper col-span-1 lg:col-span-2" style="padding-top:22px;">
+                <div class="mod-label"><span class="mod-id">INTEL</span> CONFERENCE · NETWORK · INTELLIGENCE</div>
+                <div class="draggable-module" style="padding:20px 24px;">
+
+                    <!-- Header + Stats -->
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <i class="fas fa-satellite-dish" style="color:#3a5c80; font-size:18px;"></i>
+                            <div>
+                                <h2 style="font-family:'Big Shoulders Display',sans-serif; font-size:24px; font-weight:900; color:#1a1814;">会议情报系统</h2>
+                                <div class="mbcc-label">CONFERENCE · PERSONNEL · NOTES</div>
+                            </div>
+                        </div>
+                        <div style="display:flex; gap:6px; align-items:center;">
+                            <div style="display:flex; gap:0; border:1px solid #cdc4b1;">
+                                <div style="padding:6px 12px; border-right:1px solid #cdc4b1; text-align:center;">
+                                    <div class="mbcc-label" style="font-size:7px;">EVENTS</div>
+                                    <span id="confTotalCount" style="font-family:'Big Shoulders Display',sans-serif; font-size:22px; font-weight:900; color:#1a1814;">0</span>
+                                </div>
+                                <div style="padding:6px 12px; border-right:1px solid #cdc4b1; text-align:center;">
+                                    <div class="mbcc-label" style="font-size:7px;">PERSONS</div>
+                                    <span id="confPersonCount" style="font-family:'Big Shoulders Display',sans-serif; font-size:22px; font-weight:900; color:#1a1814;">0</span>
+                                </div>
+                                <div style="padding:6px 12px; text-align:center;">
+                                    <div class="mbcc-label" style="font-size:7px;">NOTES</div>
+                                    <span id="confNoteCount" style="font-family:'Big Shoulders Display',sans-serif; font-size:22px; font-weight:900; color:#3a5c80;">0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sub-tab Navigation -->
+                    <div class="conf-subtab-nav">
+                        <button class="conf-subtab active" onclick="switchConfTab('timeline')" data-tab="timeline"><i class="fas fa-stream" style="margin-right:4px;"></i>Timeline</button>
+                        <button class="conf-subtab" onclick="switchConfTab('collection')" data-tab="collection"><i class="fas fa-id-badge" style="margin-right:4px;"></i>Collection</button>
+                        <button class="conf-subtab" onclick="switchConfTab('network')" data-tab="network"><i class="fas fa-project-diagram" style="margin-right:4px;"></i>Network</button>
+                        <button class="conf-subtab" onclick="switchConfTab('map')" data-tab="map"><i class="fas fa-map-marked-alt" style="margin-right:4px;"></i>Map</button>
+                    </div>
+
+                    <!-- ===== Timeline Tab ===== -->
+                    <div id="confTab-timeline" class="conf-tab-pane active">
+                        <!-- Action bar -->
+                        <div style="display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap;">
+                            <button onclick="openConfModal()" class="mbcc-btn-dark"><i class="fas fa-plus"></i> 会议</button>
+                            <button onclick="openPersonModal()" class="mbcc-btn-dark"><i class="fas fa-user-plus"></i> 人物</button>
+                            <button onclick="openNoteModal()" class="mbcc-btn-dark"><i class="fas fa-pen"></i> 笔记</button>
+                            <div style="flex:1;"></div>
+                            <input type="text" id="confSearchInput" placeholder="搜索会议/人物/笔记..." class="mbcc-input" style="max-width:240px; font-size:11px;" oninput="renderTimeline()">
+                        </div>
+                        <div id="timelineList" style="min-height:100px;"></div>
+                    </div>
+
+                    <!-- ===== Collection Tab ===== -->
+                    <div id="confTab-collection" class="conf-tab-pane">
+                        <!-- Controls -->
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:8px;">
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <div class="mbcc-label">COLLECTION</div>
+                                <span id="collectionProgress" style="font-family:'JetBrains Mono',monospace; font-size:10px; color:#8a8378;"></span>
+                            </div>
+                            <div style="display:flex; gap:0;">
+                                <button class="rarity-btn active" onclick="filterCollection('all')" data-filter="all">ALL</button>
+                                <button class="rarity-btn" onclick="filterCollection(1)" data-filter="1">★</button>
+                                <button class="rarity-btn" onclick="filterCollection(2)" data-filter="2">★★</button>
+                                <button class="rarity-btn" onclick="filterCollection(3)" data-filter="3">★★★</button>
+                            </div>
+                        </div>
+                        <!-- Progress bar -->
+                        <div style="height:4px; background:#ebe5d6; margin-bottom:14px;"><div id="collectionBar" style="height:100%; background:linear-gradient(90deg,#3a5c80,#b3262e); width:0%; transition:width 0.5s;"></div></div>
+                        <!-- Card grid -->
+                        <div id="collectionGrid" class="card-grid"></div>
+                    </div>
+
+                    <!-- ===== Network Tab ===== -->
+                    <div id="confTab-network" class="conf-tab-pane">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                            <div class="mbcc-label">RELATIONSHIP NETWORK · DRAG TO EXPLORE</div>
+                            <button onclick="openRelationModal()" class="mbcc-btn-dark" style="font-size:9px; padding:5px 10px;"><i class="fas fa-link"></i> ADD RELATION</button>
+                        </div>
+                        <div style="position:relative;">
+                            <svg id="networkSvg" height="420"></svg>
+                            <div id="netTooltip" class="net-tooltip"></div>
+                        </div>
+                    </div>
+
+                    <!-- ===== Map Tab ===== -->
+                    <div id="confTab-map" class="conf-tab-pane">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                            <div class="mbcc-label">INTELLIGENCE MAP · CLICK MARKERS FOR DETAILS</div>
+                        </div>
+                        <div id="intelMap"></div>
+                        <div class="map-legend"><span class="leg-conf">会议地点</span><span class="leg-person">人物所在</span></div>
+                    </div>
+
+                </div>
+            </div>
+        </div><!-- /page-conference -->
+
+        <!-- ========== Tasks Page ========== -->
+        <div id="page-tasks" class="mbcc-page">
+
+            <!-- Task Board Header -->
+            <div class="module-wrapper col-span-1 lg:col-span-2" style="padding-top:22px;">
+                <div class="mod-label"><span class="mod-id">TASK-01</span> BOARD · KANBAN</div>
+                <div class="draggable-module" style="padding:20px 24px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid #cdc4b1; padding-bottom:12px;">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <i class="fas fa-clipboard-list" style="color:#3a5c80; font-size:18px;"></i>
+                            <div>
+                                <h2 style="font-family:'Big Shoulders Display',sans-serif; font-size:24px; font-weight:900; color:#1a1814; letter-spacing:0.04em;">任务看板</h2>
+                                <div class="mbcc-label">TASK BOARD · FOCUS TRACKER</div>
+                            </div>
+                        </div>
+                        <button onclick="openNewTaskModal()" style="padding:8px 16px; background:#1a1814; color:#f3efe6; border:none; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.12em; cursor:pointer; display:flex; align-items:center; gap:6px;">
+                            <i class="fas fa-plus"></i> NEW TASK
+                        </button>
+                    </div>
+
+                    <!-- Kanban Columns -->
+                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; min-height:200px;" id="taskBoard">
+                        <!-- Backlog -->
+                        <div style="border:1px solid rgba(205,196,177,0.5); padding:12px; background:rgba(251,248,240,0.42);">
+                            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid #cdc4b1;">
+                                <div class="mbcc-label" style="display:flex; align-items:center; gap:6px;">
+                                    <span style="width:8px; height:8px; background:#8a8378; display:inline-block;"></span> BACKLOG
+                                </div>
+                                <span id="taskBacklogCount" style="font-family:'JetBrains Mono',monospace; font-size:10px; color:#8a8378;">0</span>
+                            </div>
+                            <div id="taskColBacklog" class="task-column" style="min-height:100px; display:flex; flex-direction:column; gap:8px;">
+                            </div>
+                        </div>
+                        <!-- Active -->
+                        <div style="border:1px solid rgba(58,92,128,0.5); padding:12px; border-top:2px solid #3a5c80; background:rgba(251,248,240,0.42);">
+                            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid #cdc4b1;">
+                                <div class="mbcc-label" style="display:flex; align-items:center; gap:6px;">
+                                    <span style="width:8px; height:8px; background:#3a5c80; display:inline-block;"></span> ACTIVE
+                                </div>
+                                <span id="taskActiveCount" style="font-family:'JetBrains Mono',monospace; font-size:10px; color:#3a5c80;">0</span>
+                            </div>
+                            <div id="taskColActive" class="task-column" style="min-height:100px; display:flex; flex-direction:column; gap:8px;">
+                            </div>
+                        </div>
+                        <!-- Done -->
+                        <div style="border:1px solid rgba(205,196,177,0.5); padding:12px; background:rgba(251,248,240,0.42);">
+                            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid #cdc4b1;">
+                                <div class="mbcc-label" style="display:flex; align-items:center; gap:6px;">
+                                    <span style="width:8px; height:8px; background:#326b6b; display:inline-block;"></span> DONE
+                                </div>
+                                <span id="taskDoneCount" style="font-family:'JetBrains Mono',monospace; font-size:10px; color:#326b6b;">0</span>
+                            </div>
+                            <div id="taskColDone" class="task-column" style="min-height:100px; display:flex; flex-direction:column; gap:8px;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div><!-- /page-tasks -->
+
+        <!-- ========== Conference Modal ========== -->
+        <div id="conferenceModal" class="modal-overlay">
+            <div class="modal-content" style="width:500px; padding:24px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #cdc4b1; padding-bottom:10px; margin-bottom:16px;">
+                    <h3 style="font-family:'Big Shoulders Display',sans-serif; font-size:18px; font-weight:900; color:#1a1814;" id="confModalTitle">新建会议</h3>
+                    <button class="close-modal-btn" style="background:none; border:none; color:#8a8378; font-size:18px; cursor:pointer;">&times;</button>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:12px;">
+                    <input type="hidden" id="confEditId">
+                    <div><label class="mbcc-label" style="display:block; margin-bottom:4px;">TITLE</label><input type="text" id="confTitle" placeholder="会议名称" class="mbcc-input"></div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                        <div><label class="mbcc-label" style="display:block; margin-bottom:4px;">DATE</label><input type="date" id="confDate" class="mbcc-input"></div>
+                        <div><label class="mbcc-label" style="display:block; margin-bottom:4px;">LOCATION</label><div style="display:flex;gap:4px;"><input type="text" id="confLocation" placeholder="输入或选择城市..." class="mbcc-input" list="cityList" style="flex:1;"><button type="button" onclick="addCustomCity()" style="background:#1a1814;color:#f3efe6;border:none;padding:0 10px;cursor:pointer;font-size:10px;flex-shrink:0;" title="添加新城市">+</button></div><datalist id="cityList" class="city-datalist"></datalist></div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                        <div><label class="mbcc-label" style="display:block; margin-bottom:4px;">TYPE</label>
+                            <select id="confType" class="mbcc-input"><option value="conference">学术会议</option><option value="seminar">研讨会</option><option value="meeting">组会/例会</option><option value="networking">社交</option><option value="other">其他</option></select></div>
+                        <div><label class="mbcc-label" style="display:block; margin-bottom:4px;">TAGS (逗号分隔)</label><input type="text" id="confTags" placeholder="ML, NLP" class="mbcc-input"></div>
+                    </div>
+                    <button onclick="saveConference()" class="mbcc-btn-primary">SAVE CONFERENCE</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========== Person Modal ========== -->
+        <div id="personModal" class="modal-overlay">
+            <div class="modal-content" style="width:480px; padding:24px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #cdc4b1; padding-bottom:10px; margin-bottom:16px;">
+                    <h3 style="font-family:'Big Shoulders Display',sans-serif; font-size:18px; font-weight:900; color:#1a1814;" id="personModalTitle">新建人物</h3>
+                    <button class="close-modal-btn" style="background:none; border:none; color:#8a8378; font-size:18px; cursor:pointer;">&times;</button>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:12px;">
+                    <input type="hidden" id="personEditId">
+                    <!-- Avatar upload -->
+                    <div style="display:flex; align-items:center; gap:14px; margin-bottom:4px;">
+                        <div id="personAvatarPreview" style="width:56px; height:56px; border-radius:50%; background:#1a1814; color:#f3efe6; display:flex; align-items:center; justify-content:center; font-family:'Big Shoulders Display',sans-serif; font-size:22px; font-weight:900; overflow:hidden; flex-shrink:0; cursor:pointer; border:2px solid #cdc4b1;" onclick="document.getElementById('personAvatarInput').click()" title="点击上传头像">?</div>
+                        <div style="flex:1;">
+                            <label class="mbcc-label" style="display:block; margin-bottom:4px;">NAME</label>
+                            <input type="text" id="personName" placeholder="姓名" class="mbcc-input">
+                        </div>
+                        <input type="file" id="personAvatarInput" accept="image/*" class="hidden" onchange="handlePersonAvatar(event)" style="display:none;">
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                        <div><label class="mbcc-label" style="display:block; margin-bottom:4px;">ORG / AFFILIATION</label><input type="text" id="personOrg" placeholder="单位/机构" class="mbcc-input"></div>
+                        <div><label class="mbcc-label" style="display:block; margin-bottom:4px;">ROLE / FIELD</label><input type="text" id="personRole" placeholder="教授 / NLP" class="mbcc-input"></div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;"><div><label class="mbcc-label" style="display:block; margin-bottom:4px;">LOCATION</label><div style="display:flex;gap:4px;"><input type="text" id="personLocation" placeholder="所在城市..." class="mbcc-input" list="cityList2" style="flex:1;"><button type="button" onclick="addCustomCity()" style="background:#1a1814;color:#f3efe6;border:none;padding:0 8px;cursor:pointer;font-size:10px;flex-shrink:0;" title="+">+</button></div><datalist id="cityList2" class="city-datalist"></datalist></div><div><label class="mbcc-label" style="display:block; margin-bottom:4px;">CONTACT / URL</label><input type="text" id="personContact" placeholder="邮箱 / 主页" class="mbcc-input"></div></div>
+                    <div><label class="mbcc-label" style="display:block; margin-bottom:4px;">关联会议 (可多选)</label>
+                        <div id="personConfSelect" style="max-height:100px; overflow-y:auto; border:1px solid #cdc4b1; padding:6px; font-size:11px;"></div>
+                    </div>
+                    <div><label class="mbcc-label" style="display:block; margin-bottom:4px;">NOTES</label><textarea id="personNotes" rows="2" placeholder="备注..." class="mbcc-input" style="resize:vertical;"></textarea></div>
+                    <button onclick="savePerson()" class="mbcc-btn-primary">SAVE PERSON</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========== Note Modal ========== -->
+        <div id="noteModal" class="modal-overlay">
+            <div class="modal-content" style="width:520px; padding:24px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #cdc4b1; padding-bottom:10px; margin-bottom:16px;">
+                    <h3 style="font-family:'Big Shoulders Display',sans-serif; font-size:18px; font-weight:900; color:#1a1814;" id="noteModalTitle">新建笔记</h3>
+                    <button class="close-modal-btn" style="background:none; border:none; color:#8a8378; font-size:18px; cursor:pointer;">&times;</button>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:12px;">
+                    <input type="hidden" id="noteEditId">
+                    <div><label class="mbcc-label" style="display:block; margin-bottom:4px;">TITLE</label><input type="text" id="noteTitle" placeholder="笔记标题" class="mbcc-input"></div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                        <div><label class="mbcc-label" style="display:block; margin-bottom:4px;">关联会议</label>
+                            <select id="noteConfId" class="mbcc-input"><option value="">— 不关联 —</option></select></div>
+                        <div><label class="mbcc-label" style="display:block; margin-bottom:4px;">TYPE</label>
+                            <select id="noteType" class="mbcc-input"><option value="keynote">Keynote</option><option value="talk">Talk</option><option value="poster">Poster</option><option value="chat">交流记录</option><option value="idea">灵感</option><option value="other">其他</option></select></div>
+                    </div>
+                    <div><label class="mbcc-label" style="display:block; margin-bottom:4px;">演讲者/关联人物 (可多选)</label>
+                        <div id="noteSpeakerSelect" style="max-height:100px; overflow-y:auto; border:1px solid #cdc4b1; padding:6px; font-size:11px;"></div>
+                    </div>
+                    <div><label class="mbcc-label" style="display:block; margin-bottom:4px;">CONTENT</label><textarea id="noteContent" rows="6" placeholder="笔记内容..." class="mbcc-input" style="resize:vertical;"></textarea></div>
+                    <div><label class="mbcc-label" style="display:block; margin-bottom:4px;">TAGS (逗号分隔)</label><input type="text" id="noteTags" placeholder="deep-learning, attention" class="mbcc-input"></div>
+                    <button onclick="saveNote()" class="mbcc-btn-primary">SAVE NOTE</button>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- ========== Relation Modal ========== -->
+        <div id="relationModal" class="modal-overlay">
+            <div class="modal-content" style="width:420px; padding:24px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #cdc4b1; padding-bottom:10px; margin-bottom:16px;">
+                    <h3 style="font-family:'Big Shoulders Display',sans-serif; font-size:18px; font-weight:900; color:#1a1814;">添加人物关系</h3>
+                    <button class="close-modal-btn" style="background:none; border:none; color:#8a8378; font-size:18px; cursor:pointer;">&times;</button>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:12px;">
+                    <div><label class="mbcc-label" style="display:block; margin-bottom:4px;">PERSON A</label><select id="relPersonA" class="mbcc-input"></select></div>
+                    <div><label class="mbcc-label" style="display:block; margin-bottom:4px;">RELATION TYPE</label>
+                        <select id="relType" class="mbcc-input"><option value="colleague">同事</option><option value="advisor">导师/学生</option><option value="collaborator">合作者</option><option value="classmate">同校</option><option value="friend">朋友</option><option value="met">见过面</option></select></div>
+                    <div><label class="mbcc-label" style="display:block; margin-bottom:4px;">PERSON B</label><select id="relPersonB" class="mbcc-input"></select></div>
+                    <button onclick="saveRelation()" class="mbcc-btn-primary">SAVE RELATION</button>
+                </div>
+            </div>
+        </div>
+
+                <!-- ========== Task Modal ========== -->
+        <div id="taskModal" class="modal-overlay">
+            <div class="modal-content" style="width:450px; padding:24px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #cdc4b1; padding-bottom:10px; margin-bottom:16px;">
+                    <h3 style="font-family:'Big Shoulders Display',sans-serif; font-size:18px; font-weight:900; color:#1a1814;">新建任务</h3>
+                    <button class="close-modal-btn" style="background:none; border:none; color:#8a8378; font-size:18px; cursor:pointer;">&times;</button>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:12px;">
+                    <div>
+                        <label class="mbcc-label" style="display:block; margin-bottom:4px;">TITLE</label>
+                        <input type="text" id="taskTitle" placeholder="任务名称" style="width:100%; padding:8px 10px; border:1px solid #cdc4b1; background:rgba(251,248,240,0.58); font-size:13px; color:#1a1814; box-sizing:border-box;">
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                        <div>
+                            <label class="mbcc-label" style="display:block; margin-bottom:4px;">PRIORITY</label>
+                            <select id="taskPriority" style="width:100%; padding:8px 10px; border:1px solid #cdc4b1; background:rgba(251,248,240,0.58); font-size:12px; color:#1a1814; box-sizing:border-box;">
+                                <option value="low">Low</option>
+                                <option value="medium" selected>Medium</option>
+                                <option value="high">High</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="mbcc-label" style="display:block; margin-bottom:4px;">DEADLINE</label>
+                            <input type="date" id="taskDeadline" style="width:100%; padding:8px 10px; border:1px solid #cdc4b1; background:rgba(251,248,240,0.58); font-size:12px; color:#1a1814; box-sizing:border-box;">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="mbcc-label" style="display:block; margin-bottom:4px;">NOTES</label>
+                        <textarea id="taskNotes" rows="3" placeholder="任务描述..." style="width:100%; padding:8px 10px; border:1px solid #cdc4b1; background:rgba(251,248,240,0.58); font-size:12px; color:#1a1814; resize:vertical; font-family:inherit; box-sizing:border-box;"></textarea>
+                    </div>
+                    <button onclick="saveTask()" style="padding:10px; background:#b3262e; color:#f3efe6; border:none; font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:0.14em; cursor:pointer; margin-top:4px;">CREATE TASK</button>
+                </div>
+            </div>
+        </div>
+
         <div style="display:flex; justify-content:space-between; font-family:'JetBrains Mono',monospace; font-size:9px; color:#8a8378; letter-spacing:0.22em; margin-top:20px; padding:0 4px;">
           <span>MINOS BUREAU · CRISIS CONTROL · FILE COPY</span>
           <span>R-MBCC-001-XL · V1 · DISPATCH SERIES</span>
         </div>
 
-        <div class="mt-8 pt-4 border-t border-[#cdc4b1] flex flex-col items-center gap-3">
+        <div class="mt-8 pt-4 border-t border-[#cdc4b1] flex flex-col items-center gap-3" style="background:rgba(251,248,240,0.52); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); padding:16px; margin:20px -16px 0;">
             <div class="flex gap-3 flex-wrap justify-center">
                 <button onclick="exportData()" class="px-4 py-2 bg-[#b3262e] text-white text-xs font-bold hover:opacity-90 transition border-none" style="border-radius:0; letter-spacing:0.14em; text-transform:uppercase; font-family:'JetBrains Mono',monospace; font-size:0.7rem;"><i class="fas fa-file-export mr-1"></i>导出数据</button>
                 <label class="px-4 py-2 bg-transparent text-[#56514a] text-xs font-bold hover:bg-[#ebe5d6] transition border border-[#cdc4b1] cursor-pointer" style="border-radius:0; letter-spacing:0.08em; font-family:'JetBrains Mono',monospace;"><i class="fas fa-file-import mr-1"></i>导入数据<input type="file" accept=".json" onchange="importData(event)" class="hidden"></label>
@@ -1190,7 +1635,7 @@
 
     <script>
         // ================= 数据初始化与存储 =================
-        let appData = { tasks: [], focusByCategory: {}, checkRecords: {}, ideas: [], moodHistory: {}, leaveRecords: {}, annualLeaveHistory: {} };
+        let appData = { tasks: [], focusByCategory: {}, checkRecords: {}, ideas: [], moodHistory: {}, leaveRecords: {}, annualLeaveHistory: {}, conferences: [], persons: [], notes: [], taskBoard: [], customCities: [] };
         let currentCalendarDate = new Date();
         let isLayoutLocked = true;
         let isRevisionMode = false;
@@ -1416,7 +1861,7 @@
                 const enName = FOCUS_CAT_EN[c.key] || '';
                 const desc = FOCUS_CAT_DESC[c.key] || c.desc;
                 const barPct = totalMins > 0 ? (totalMins / totalMinsAll) * 100 : 0;
-                return `<div class="focuscat-row" style="position:relative; display:flex; align-items:center; padding:10px 12px; border:1px solid #cdc4b1; margin-bottom:6px; background:#fbf8f0; transition:all 0.2s; cursor:default; overflow:hidden;" onmouseover="this.style.borderColor='${c.color}'" onmouseout="this.style.borderColor='#cdc4b1'">
+                return `<div class="focuscat-row" style="position:relative; display:flex; align-items:center; padding:10px 12px; border:1px solid #cdc4b1; margin-bottom:6px; background:rgba(251,248,240,0.6); transition:all 0.2s; cursor:default; overflow:hidden;" onmouseover="this.style.borderColor='${c.color}'" onmouseout="this.style.borderColor='#cdc4b1'">
                     <div style="position:absolute; top:0; left:0; bottom:0; width:${barPct}%; background:${c.color}; opacity:0.12; transition:width 0.4s ease; pointer-events:none;"></div>
                     <div style="width:3px; height:36px; background:${c.color}; margin-right:12px; flex-shrink:0; position:relative; z-index:1;"></div>
                     <div style="flex:1; min-width:0; position:relative; z-index:1;">
@@ -2663,6 +3108,776 @@
             listEl.innerHTML = listHtml || '<div style="text-align:center;color:#8a8378;font-family:\'JetBrains Mono\',monospace;font-size:10px;padding:16px 0;letter-spacing:0.12em;">NO RECORDS</div>';
         }
 
+        // ================= Hash Router =================
+        function navigateTo(page) { window.location.hash = page; }
+
+        function router() {
+            const hash = (window.location.hash || '#dashboard').replace('#', '') || 'dashboard';
+            ['dashboard', 'conference', 'tasks'].forEach(p => {
+                const el = document.getElementById('page-' + p);
+                if (el) el.classList.toggle('active', p === hash);
+            });
+            document.querySelectorAll('.mbcc-nav-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.page === hash);
+            });
+            if (hash === 'conference') renderConferencePage();
+            if (hash === 'tasks') renderTaskBoard();
+        }
+        window.addEventListener('hashchange', router);
+
+        // ================= Conference Functions (Phase 1: 三实体架构) =================
+        function ensureIntelData() {
+            if (!appData.conferences) appData.conferences = [];
+            if (!appData.persons) appData.persons = [];
+            if (!appData.notes) appData.notes = [];
+            // Migrate old contacts → persons
+            if (appData.contacts && appData.contacts.length > 0 && appData.persons.length === 0) {
+                appData.persons = appData.contacts.map(c => ({
+                    id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+                    name: c.name, org: c.org || '', role: '', field: '',
+                    contact: '', notes: c.note || '', conferenceIds: [], relations: [],
+                    cardRarity: 1, createdAt: c.addedDate || new Date().toISOString().slice(0,10)
+                }));
+                delete appData.contacts;
+                saveData();
+            }
+        }
+
+        function getPersonById(id) { return (appData.persons || []).find(p => p.id === id); }
+        function getConfById(id) { return (appData.conferences || []).find(c => c.id === id); }
+        function getNoteById(id) { return (appData.notes || []).find(n => n.id === id); }
+
+        function switchConfTab(tab) {
+            document.querySelectorAll('.conf-subtab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+            document.querySelectorAll('.conf-tab-pane').forEach(p => p.classList.toggle('active', p.id === 'confTab-' + tab));
+            if (tab === 'collection') renderCollection();
+            if (tab === 'network') setTimeout(renderNetwork, 50);
+            if (tab === 'map') setTimeout(renderMap, 50);
+        }
+
+        // --- Conference CRUD ---
+        function openConfModal(editId) {
+            ensureIntelData();
+            document.getElementById('confEditId').value = editId || '';
+            const c = editId ? getConfById(editId) : null;
+            document.getElementById('confModalTitle').textContent = c ? '编辑会议' : '新建会议';
+            document.getElementById('confTitle').value = c ? c.title : '';
+            document.getElementById('confDate').value = c ? c.date : new Date().toISOString().slice(0,10);
+            document.getElementById('confLocation').value = c ? (c.location || '') : '';
+            document.getElementById('confType').value = c ? c.type : 'conference';
+            document.getElementById('confTags').value = c ? (c.tags || []).join(', ') : '';
+            buildCityDatalist();
+            document.getElementById('conferenceModal').classList.add('active');
+        }
+
+        function saveConference() {
+            ensureIntelData();
+            const editId = document.getElementById('confEditId').value;
+            const title = document.getElementById('confTitle').value.trim();
+            if (!title) { alert('请输入会议名称'); return; }
+            const data = {
+                title, date: document.getElementById('confDate').value,
+                location: document.getElementById('confLocation').value.trim(),
+                type: document.getElementById('confType').value,
+                tags: document.getElementById('confTags').value.split(',').map(t => t.trim()).filter(Boolean)
+            };
+            if (editId) {
+                const c = getConfById(editId);
+                if (c) Object.assign(c, data);
+            } else {
+                data.id = Date.now().toString(36) + Math.random().toString(36).slice(2,5);
+                data.createdAt = new Date().toISOString();
+                appData.conferences.push(data);
+            }
+            saveData(); closeModals(); renderTimeline(); updateNavCounts();
+        }
+
+        function deleteConference(id) {
+            if (!confirm('删除此会议？关联的笔记不会被删除。')) return;
+            appData.conferences = appData.conferences.filter(c => c.id !== id);
+            appData.persons.forEach(p => { if (p.conferenceIds) p.conferenceIds = p.conferenceIds.filter(cid => cid !== id); });
+            appData.notes.forEach(n => { if (n.confId === id) n.confId = ''; });
+            saveData(); renderTimeline(); updateNavCounts();
+        }
+
+        // --- Person CRUD ---
+        let pendingPersonAvatar = null; // temp storage for avatar during edit
+
+        function handlePersonAvatar(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                // Resize to max 120px to keep data small
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const size = 120;
+                    canvas.width = size; canvas.height = size;
+                    const ctx = canvas.getContext('2d');
+                    // Center crop
+                    const s = Math.min(img.width, img.height);
+                    const sx = (img.width - s) / 2, sy = (img.height - s) / 2;
+                    ctx.drawImage(img, sx, sy, s, s, 0, 0, size, size);
+                    pendingPersonAvatar = canvas.toDataURL('image/jpeg', 0.7);
+                    // Update preview
+                    const preview = document.getElementById('personAvatarPreview');
+                    preview.innerHTML = '<img src="' + pendingPersonAvatar + '" style="width:100%;height:100%;object-fit:cover;">';
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function openPersonModal(editId) {
+            ensureIntelData();
+            pendingPersonAvatar = null;
+            document.getElementById('personEditId').value = editId || '';
+            const p = editId ? getPersonById(editId) : null;
+            document.getElementById('personModalTitle').textContent = p ? '编辑人物' : '新建人物';
+            document.getElementById('personName').value = p ? p.name : '';
+            // Avatar preview
+            const preview = document.getElementById('personAvatarPreview');
+            if (p && p.avatarData) {
+                preview.innerHTML = '<img src="' + p.avatarData + '" style="width:100%;height:100%;object-fit:cover;">';
+                pendingPersonAvatar = p.avatarData;
+            } else {
+                preview.innerHTML = (p ? (p.name||'?')[0].toUpperCase() : '?');
+            }
+            document.getElementById('personOrg').value = p ? (p.org || '') : '';
+            document.getElementById('personRole').value = p ? (p.role || '') : '';
+            document.getElementById('personLocation').value = p ? (p.location || '') : '';
+            document.getElementById('personContact').value = p ? (p.contact || '') : '';
+            document.getElementById('personNotes').value = p ? (p.notes || '') : '';
+            // Render conference checkboxes
+            const confSel = document.getElementById('personConfSelect');
+            const linked = p ? (p.conferenceIds || []) : [];
+            confSel.innerHTML = appData.conferences.length === 0
+                ? '<div style="color:#8a8378;padding:4px;">暂无会议</div>'
+                : appData.conferences.map(c => '<label style="display:flex;align-items:center;gap:4px;padding:2px 0;cursor:pointer;"><input type="checkbox" value="' + c.id + '"' + (linked.includes(c.id) ? ' checked' : '') + ' style="accent-color:#b3262e;"> ' + escapeHtml(c.title) + ' <span style="color:#8a8378;font-size:9px;">(' + c.date + ')</span></label>').join('');
+            buildCityDatalist();
+            document.getElementById('personModal').classList.add('active');
+        }
+
+        function savePerson() {
+            ensureIntelData();
+            const editId = document.getElementById('personEditId').value;
+            const name = document.getElementById('personName').value.trim();
+            if (!name) { alert('请输入姓名'); return; }
+            const confIds = Array.from(document.querySelectorAll('#personConfSelect input:checked')).map(cb => cb.value);
+            const data = {
+                name, org: document.getElementById('personOrg').value.trim(),
+                role: document.getElementById('personRole').value.trim(),
+                location: document.getElementById('personLocation').value.trim(),
+                contact: document.getElementById('personContact').value.trim(),
+                notes: document.getElementById('personNotes').value.trim(),
+                conferenceIds: confIds
+            };
+            if (pendingPersonAvatar) data.avatarData = pendingPersonAvatar;
+            if (editId) {
+                const p = getPersonById(editId);
+                if (p) Object.assign(p, data);
+            } else {
+                data.id = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+                data.relations = []; data.cardRarity = 1;
+                data.createdAt = new Date().toISOString().slice(0,10);
+                appData.persons.push(data);
+            }
+            saveData(); closeModals(); renderTimeline(); updateNavCounts();
+        }
+
+        function deletePerson(id) {
+            if (!confirm('删除此人物？')) return;
+            appData.persons = appData.persons.filter(p => p.id !== id);
+            appData.notes.forEach(n => { if (n.speakerIds) n.speakerIds = n.speakerIds.filter(sid => sid !== id); });
+            saveData(); renderTimeline(); updateNavCounts();
+        }
+
+        // --- Note CRUD ---
+        function openNoteModal(editId, preConfId) {
+            ensureIntelData();
+            document.getElementById('noteEditId').value = editId || '';
+            const n = editId ? getNoteById(editId) : null;
+            document.getElementById('noteModalTitle').textContent = n ? '编辑笔记' : '新建笔记';
+            document.getElementById('noteTitle').value = n ? n.title : '';
+            document.getElementById('noteContent').value = n ? (n.content || '') : '';
+            document.getElementById('noteType').value = n ? n.type : 'talk';
+            document.getElementById('noteTags').value = n ? (n.tags || []).join(', ') : '';
+            // Conf select
+            const confSel = document.getElementById('noteConfId');
+            confSel.innerHTML = '<option value="">— 不关联 —</option>' + appData.conferences.map(c => '<option value="' + c.id + '"' + ((n && n.confId === c.id) || (!n && preConfId === c.id) ? ' selected' : '') + '>' + escapeHtml(c.title) + ' (' + c.date + ')</option>').join('');
+            // Speaker checkboxes
+            const spkSel = document.getElementById('noteSpeakerSelect');
+            const linked = n ? (n.speakerIds || []) : [];
+            spkSel.innerHTML = appData.persons.length === 0
+                ? '<div style="color:#8a8378;padding:4px;">暂无人物</div>'
+                : appData.persons.map(p => '<label style="display:flex;align-items:center;gap:4px;padding:2px 0;cursor:pointer;"><input type="checkbox" value="' + p.id + '"' + (linked.includes(p.id) ? ' checked' : '') + ' style="accent-color:#3a5c80;"> ' + escapeHtml(p.name) + ' <span style="color:#8a8378;font-size:9px;">(' + escapeHtml(p.org||'') + ')</span></label>').join('');
+            document.getElementById('noteModal').classList.add('active');
+        }
+
+        function saveNote() {
+            ensureIntelData();
+            const editId = document.getElementById('noteEditId').value;
+            const title = document.getElementById('noteTitle').value.trim();
+            if (!title) { alert('请输入笔记标题'); return; }
+            const speakerIds = Array.from(document.querySelectorAll('#noteSpeakerSelect input:checked')).map(cb => cb.value);
+            const data = {
+                title, content: document.getElementById('noteContent').value.trim(),
+                confId: document.getElementById('noteConfId').value,
+                type: document.getElementById('noteType').value,
+                speakerIds,
+                tags: document.getElementById('noteTags').value.split(',').map(t => t.trim()).filter(Boolean)
+            };
+            if (editId) {
+                const n = getNoteById(editId);
+                if (n) Object.assign(n, data);
+            } else {
+                data.id = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+                data.createdAt = new Date().toISOString();
+                appData.notes.push(data);
+            }
+            saveData(); closeModals(); renderTimeline(); updateNavCounts();
+        }
+
+        function deleteNote(id) {
+            if (!confirm('删除此笔记？')) return;
+            appData.notes = appData.notes.filter(n => n.id !== id);
+            saveData(); renderTimeline(); updateNavCounts();
+        }
+
+        // --- Timeline Render ---
+        function renderTimeline() {
+            ensureIntelData();
+            const container = document.getElementById('timelineList');
+            if (!container) return;
+            const search = (document.getElementById('confSearchInput') || {}).value || '';
+            const q = search.toLowerCase();
+
+            // Stats
+            document.getElementById('confTotalCount').textContent = appData.conferences.length;
+            document.getElementById('confPersonCount').textContent = appData.persons.length;
+            document.getElementById('confNoteCount').textContent = appData.notes.length;
+
+            // Sort conferences by date desc
+            let confs = [...appData.conferences].sort((a,b) => (b.date||'').localeCompare(a.date||''));
+            if (q) confs = confs.filter(c => c.title.toLowerCase().includes(q) || (c.location||'').toLowerCase().includes(q) || (c.tags||[]).some(t => t.toLowerCase().includes(q)));
+
+            // Also gather unlinked persons and notes
+            const linkedPersonIds = new Set();
+            const linkedNoteConfs = new Set();
+            confs.forEach(c => {
+                appData.persons.filter(p => (p.conferenceIds||[]).includes(c.id)).forEach(p => linkedPersonIds.add(p.id));
+                appData.notes.filter(n => n.confId === c.id).forEach(n => linkedNoteConfs.add(n.id));
+            });
+
+            const typeIcons = { conference:'fa-microphone', seminar:'fa-chalkboard-teacher', meeting:'fa-handshake', networking:'fa-glass-cheers', other:'fa-calendar' };
+            const noteTypeLabels = { keynote:'KEYNOTE', talk:'TALK', poster:'POSTER', chat:'CHAT', idea:'IDEA', other:'NOTE' };
+
+            let html = '';
+
+            if (confs.length === 0 && appData.persons.length === 0 && appData.notes.length === 0) {
+                html = '<div style="text-align:center;padding:40px 0;color:#8a8378;"><i class="fas fa-folder-open" style="font-size:28px;opacity:0.3;margin-bottom:10px;display:block;"></i><div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;letter-spacing:0.12em;">NO DATA YET · USE THE BUTTONS ABOVE</div></div>';
+            } else {
+                // Render each conference as expandable entry
+                confs.forEach(c => {
+                    const icon = typeIcons[c.type] || 'fa-calendar';
+                    const confPersons = appData.persons.filter(p => (p.conferenceIds||[]).includes(c.id));
+                    const confNotes = appData.notes.filter(n => n.confId === c.id);
+                    const peopleTags = confPersons.map(p => '<span class="person-chip"><span class="chip-avatar">' + (p.name||'?')[0].toUpperCase() + '</span>' + escapeHtml(p.name) + '</span>').join('');
+                    const tagHtml = (c.tags||[]).map(t => '<span class="tag-chip">' + escapeHtml(t) + '</span>').join('');
+
+                    const notesHtml = confNotes.length > 0
+                        ? confNotes.map(n => {
+                            const speakers = (n.speakerIds||[]).map(sid => { const sp = getPersonById(sid); return sp ? escapeHtml(sp.name) : ''; }).filter(Boolean).join(', ');
+                            return '<div class="note-card"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><span style="font-size:8px;background:#3a5c80;color:#f3efe6;padding:0 4px;font-family:\'JetBrains Mono\',monospace;letter-spacing:0.08em;margin-right:6px;">' + (noteTypeLabels[n.type]||'NOTE') + '</span><strong style="font-size:12px;color:#1a1814;">' + escapeHtml(n.title) + '</strong>' + (speakers ? '<span style="font-size:10px;color:#8a8378;margin-left:6px;">by ' + speakers + '</span>' : '') + '</div><div style="display:flex;gap:4px;"><button onclick="openNoteModal(\'' + n.id + '\')" style="background:none;border:none;color:#8a8378;cursor:pointer;font-size:10px;" title="编辑"><i class="fas fa-pen"></i></button><button onclick="deleteNote(\'' + n.id + '\')" style="background:none;border:none;color:#cdc4b1;cursor:pointer;font-size:10px;" title="删除"><i class="fas fa-times"></i></button></div></div>' + (n.content ? '<div style="font-size:11px;color:#56514a;margin-top:6px;line-height:1.6;white-space:pre-wrap;">' + escapeHtml(n.content).slice(0,300) + (n.content.length > 300 ? '...' : '') + '</div>' : '') + '</div>';
+                        }).join('')
+                        : '<div style="font-size:10px;color:#cdc4b1;font-family:\'JetBrains Mono\',monospace;padding:8px 0;">NO NOTES FOR THIS EVENT</div>';
+
+                    html += '<div class="conf-entry" id="conf-' + c.id + '"><div class="conf-entry-header" onclick="this.parentElement.classList.toggle(\'expanded\')"><div style="display:flex;gap:10px;align-items:flex-start;flex:1;min-width:0;"><i class="fas ' + icon + '" style="color:#3a5c80;margin-top:2px;"></i><div style="min-width:0;"><div style="font-weight:700;color:#1a1814;font-size:14px;">' + escapeHtml(c.title) + '</div><div class="mbcc-label" style="margin:3px 0 5px;">' + c.date + ' · ' + escapeHtml(c.location||'N/A') + ' · ' + c.type.toUpperCase() + '</div><div>' + peopleTags + '</div><div style="margin-top:3px;">' + tagHtml + '</div></div></div><div style="display:flex;align-items:center;gap:6px;flex-shrink:0;"><span class="mbcc-label" style="font-size:8px;">' + confNotes.length + ' NOTES · ' + confPersons.length + ' PPL</span><i class="fas fa-chevron-right expand-chevron"></i></div></div><div class="conf-entry-body"><div style="display:flex;gap:6px;margin-bottom:10px;"><button onclick="openNoteModal(null,\'' + c.id + '\')" style="font-size:9px;padding:4px 10px;background:#3a5c80;color:#f3efe6;border:none;cursor:pointer;font-family:\'JetBrains Mono\',monospace;letter-spacing:0.08em;"><i class="fas fa-pen" style="margin-right:3px;"></i>ADD NOTE</button><button onclick="openConfModal(\'' + c.id + '\')" style="font-size:9px;padding:4px 10px;background:transparent;color:#8a8378;border:1px solid #cdc4b1;cursor:pointer;font-family:\'JetBrains Mono\',monospace;letter-spacing:0.08em;"><i class="fas fa-edit" style="margin-right:3px;"></i>EDIT</button><button onclick="deleteConference(\'' + c.id + '\')" style="font-size:9px;padding:4px 10px;background:transparent;color:#b3262e;border:1px solid #b3262e44;cursor:pointer;font-family:\'JetBrains Mono\',monospace;letter-spacing:0.08em;"><i class="fas fa-trash-alt" style="margin-right:3px;"></i>DELETE</button></div>' + notesHtml + '</div></div>';
+                });
+
+                // Unlinked persons section
+                const unlinkedPersons = appData.persons.filter(p => !p.conferenceIds || p.conferenceIds.length === 0);
+                if (unlinkedPersons.length > 0 && (!q || unlinkedPersons.some(p => p.name.toLowerCase().includes(q)))) {
+                    html += '<div style="margin-top:16px;padding-top:12px;border-top:1px solid #cdc4b1;"><div class="mbcc-label" style="margin-bottom:8px;">UNLINKED CONTACTS · ' + unlinkedPersons.length + '</div>';
+                    html += '<div style="display:flex;flex-wrap:wrap;gap:4px;">' + unlinkedPersons.map(p => '<span class="person-chip" style="cursor:pointer;" onclick="openPersonModal(\'' + p.id + '\')"><span class="chip-avatar">' + (p.name||'?')[0].toUpperCase() + '</span>' + escapeHtml(p.name) + (p.org ? ' · ' + escapeHtml(p.org) : '') + '</span>').join('') + '</div></div>';
+                }
+
+                // Unlinked notes section
+                const unlinkedNotes = appData.notes.filter(n => !n.confId);
+                if (unlinkedNotes.length > 0 && (!q || unlinkedNotes.some(n => n.title.toLowerCase().includes(q)))) {
+                    html += '<div style="margin-top:16px;padding-top:12px;border-top:1px solid #cdc4b1;"><div class="mbcc-label" style="margin-bottom:8px;">STANDALONE NOTES · ' + unlinkedNotes.length + '</div>';
+                    unlinkedNotes.forEach(n => {
+                        const speakers = (n.speakerIds||[]).map(sid => { const sp = getPersonById(sid); return sp ? escapeHtml(sp.name) : ''; }).filter(Boolean).join(', ');
+                        html += '<div class="note-card"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><span style="font-size:8px;background:#3a5c80;color:#f3efe6;padding:0 4px;font-family:\'JetBrains Mono\',monospace;margin-right:6px;">' + (noteTypeLabels[n.type]||'NOTE') + '</span><strong style="font-size:12px;">' + escapeHtml(n.title) + '</strong>' + (speakers ? '<span style="font-size:10px;color:#8a8378;margin-left:6px;">by ' + speakers + '</span>' : '') + '</div><div style="display:flex;gap:4px;"><button onclick="openNoteModal(\'' + n.id + '\')" style="background:none;border:none;color:#8a8378;cursor:pointer;font-size:10px;"><i class="fas fa-pen"></i></button><button onclick="deleteNote(\'' + n.id + '\')" style="background:none;border:none;color:#cdc4b1;cursor:pointer;font-size:10px;"><i class="fas fa-times"></i></button></div></div>' + (n.content ? '<div style="font-size:11px;color:#56514a;margin-top:6px;line-height:1.6;white-space:pre-wrap;">' + escapeHtml(n.content).slice(0,200) + '</div>' : '') + '</div>';
+                    });
+                    html += '</div>';
+                }
+            }
+
+            container.innerHTML = html;
+        }
+
+        function renderConferencePage() { renderTimeline(); }
+
+        function updateNavCounts() {
+            ensureIntelData(); ensureTaskData();
+            const confEl = document.getElementById('confCount');
+            const taskEl = document.getElementById('taskCount');
+            if (confEl) { const n = appData.conferences.length; if (n > 0) { confEl.textContent = n; confEl.style.display = ''; } else { confEl.style.display = 'none'; } }
+            if (taskEl) { const a = appData.taskBoard.filter(t => t.status !== 'done').length; if (a > 0) { taskEl.textContent = a; taskEl.style.display = ''; } else { taskEl.style.display = 'none'; } }
+        }
+
+        // ================= Phase 2: Collection (卡片图鉴) =================
+        let collectionFilter = 'all';
+
+        function filterCollection(f) {
+            collectionFilter = f;
+            document.querySelectorAll('.rarity-btn').forEach(b => b.classList.toggle('active', String(b.dataset.filter) === String(f)));
+            renderCollection();
+        }
+
+        function cycleRarity(id) {
+            ensureIntelData();
+            const p = getPersonById(id);
+            if (p) { p.cardRarity = ((p.cardRarity || 1) % 3) + 1; saveData(); renderCollection(); }
+        }
+
+        function renderCollection() {
+            ensureIntelData();
+            const grid = document.getElementById('collectionGrid');
+            if (!grid) return;
+            let persons = [...appData.persons];
+            if (collectionFilter !== 'all') persons = persons.filter(p => (p.cardRarity || 1) === Number(collectionFilter));
+
+            // Progress
+            const total = appData.persons.length;
+            const r3 = appData.persons.filter(p => p.cardRarity === 3).length;
+            const r2 = appData.persons.filter(p => p.cardRarity === 2).length;
+            const progEl = document.getElementById('collectionProgress');
+            const barEl = document.getElementById('collectionBar');
+            if (progEl) progEl.textContent = total + ' COLLECTED · ' + r3 + ' ★★★ · ' + r2 + ' ★★';
+            if (barEl) barEl.style.width = Math.min(100, total * 2) + '%';
+
+            if (persons.length === 0) {
+                grid.innerHTML = '<div style="text-align:center;padding:40px 0;color:#8a8378;grid-column:1/-1;"><i class="fas fa-id-badge" style="font-size:24px;opacity:0.2;margin-bottom:8px;display:block;"></i><div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;letter-spacing:0.1em;">' + (total === 0 ? 'NO CARDS YET · ADD PERSONS FIRST' : 'NO MATCHES') + '</div></div>';
+                return;
+            }
+
+            grid.innerHTML = persons.map(p => {
+                const r = p.cardRarity || 1;
+                const stars = '★'.repeat(r);
+                const initial = (p.name || '?')[0].toUpperCase();
+                const confCount = (p.conferenceIds || []).length;
+                const avatarHtml = p.avatarData
+                    ? '<img src="' + p.avatarData + '" alt="">'
+                    : initial;
+                return '<div class="gacha-card" data-rarity="' + r + '" onclick="this.classList.toggle(\'flipped\')">' +
+                    '<div class="gacha-card-inner">' +
+                    '<div class="gacha-card-front">' +
+                    '<div class="gacha-avatar">' + avatarHtml + '</div>' +
+                    '<div class="gacha-stars">' + stars + '</div>' +
+                    '<div class="gacha-name">' + escapeHtml(p.name) + '</div>' +
+                    '<div class="gacha-org">' + escapeHtml(p.org || '') + '</div>' +
+                    '</div>' +
+                    '<div class="gacha-card-back">' +
+                    '<div style="font-size:11px;font-weight:700;color:#1a1814;margin-bottom:6px;">' + escapeHtml(p.name) + '</div>' +
+                    '<div class="mbcc-label" style="margin-bottom:4px;">' + escapeHtml(p.role || p.org || '') + '</div>' +
+                    (p.contact ? '<div style="font-size:9px;color:#3a5c80;margin-bottom:4px;word-break:break-all;">' + escapeHtml(p.contact) + '</div>' : '') +
+                    '<div style="font-size:9px;color:#8a8378;margin-bottom:8px;">' + confCount + ' EVENTS</div>' +
+                    '<div style="display:flex;gap:4px;justify-content:center;">' +
+                    '<button onclick="event.stopPropagation();cycleRarity(\'' + p.id + '\')" style="font-size:8px;padding:3px 8px;border:1px solid #cdc4b1;background:transparent;cursor:pointer;color:#8a8378;font-family:\'JetBrains Mono\',monospace;" title="切换稀有度">★ ' + r + '/3</button>' +
+                    '<button onclick="event.stopPropagation();openPersonModal(\'' + p.id + '\')" style="font-size:8px;padding:3px 8px;border:1px solid #cdc4b1;background:transparent;cursor:pointer;color:#8a8378;" title="编辑"><i class="fas fa-pen"></i></button>' +
+                    '</div></div></div></div>';
+            }).join('');
+        }
+
+        // ================= Phase 3: Network (D3 关系图) =================
+        let networkSim = null;
+
+        function openRelationModal() {
+            ensureIntelData();
+            const opts = appData.persons.map(p => '<option value="' + p.id + '">' + escapeHtml(p.name) + '</option>').join('');
+            document.getElementById('relPersonA').innerHTML = opts;
+            document.getElementById('relPersonB').innerHTML = opts;
+            document.getElementById('relType').value = 'colleague';
+            document.getElementById('relationModal').classList.add('active');
+        }
+
+        function saveRelation() {
+            ensureIntelData();
+            const aId = document.getElementById('relPersonA').value;
+            const bId = document.getElementById('relPersonB').value;
+            const type = document.getElementById('relType').value;
+            if (aId === bId) { alert('请选择两个不同的人'); return; }
+            const a = getPersonById(aId);
+            if (a) {
+                if (!a.relations) a.relations = [];
+                if (!a.relations.find(r => r.personId === bId && r.type === type)) {
+                    a.relations.push({ personId: bId, type: type });
+                }
+            }
+            const b = getPersonById(bId);
+            if (b) {
+                if (!b.relations) b.relations = [];
+                if (!b.relations.find(r => r.personId === aId && r.type === type)) {
+                    b.relations.push({ personId: aId, type: type });
+                }
+            }
+            saveData(); closeModals(); renderNetwork();
+        }
+
+        function renderNetwork() {
+            ensureIntelData();
+            const svgEl = document.getElementById('networkSvg');
+            if (!svgEl || typeof d3 === 'undefined') return;
+            const tooltip = document.getElementById('netTooltip');
+
+            const width = svgEl.clientWidth || 700;
+            const height = 420;
+            svgEl.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
+
+            // Build nodes and links
+            const nodes = appData.persons.map(p => ({
+                id: p.id, name: p.name, org: p.org || '', role: p.role || '',
+                r: 6 + Math.min((p.conferenceIds || []).length, 8) * 2.5,
+                rarity: p.cardRarity || 1,
+                avatar: p.avatarData || null
+            }));
+
+            const nodeIds = new Set(nodes.map(n => n.id));
+            const links = [];
+            const linkSet = new Set();
+            appData.persons.forEach(p => {
+                (p.relations || []).forEach(rel => {
+                    if (!nodeIds.has(rel.personId)) return;
+                    const key = [p.id, rel.personId].sort().join('-') + rel.type;
+                    if (!linkSet.has(key)) {
+                        linkSet.add(key);
+                        links.push({ source: p.id, target: rel.personId, type: rel.type });
+                    }
+                });
+                // Also link persons who share conferences
+                (p.conferenceIds || []).forEach(cid => {
+                    appData.persons.forEach(q => {
+                        if (q.id !== p.id && (q.conferenceIds || []).includes(cid)) {
+                            const key = [p.id, q.id].sort().join('-') + 'conf';
+                            if (!linkSet.has(key)) {
+                                linkSet.add(key);
+                                links.push({ source: p.id, target: q.id, type: 'conference' });
+                            }
+                        }
+                    });
+                });
+            });
+
+            if (nodes.length === 0) {
+                d3.select(svgEl).selectAll('*').remove();
+                d3.select(svgEl).append('text').attr('x', width/2).attr('y', height/2).attr('text-anchor', 'middle')
+                    .attr('fill', '#8a8378').attr('font-family', 'JetBrains Mono,monospace').attr('font-size', '11px')
+                    .text('ADD PERSONS AND RELATIONS TO BUILD THE NETWORK');
+                return;
+            }
+
+            d3.select(svgEl).selectAll('*').remove();
+            const svg = d3.select(svgEl);
+            const g = svg.append('g');
+
+            // Zoom
+            svg.call(d3.zoom().scaleExtent([0.3, 4]).on('zoom', e => g.attr('transform', e.transform)));
+
+            const relColors = { colleague: '#8a8378', advisor: '#b3262e', collaborator: '#3a5c80', classmate: '#326b6b', friend: '#c08a3a', met: '#cdc4b1', conference: '#ebe5d6' };
+
+            const link = g.append('g').selectAll('line').data(links).join('line')
+                .attr('class', 'net-link').attr('stroke', d => relColors[d.type] || '#cdc4b1')
+                .attr('stroke-width', d => d.type === 'conference' ? 0.5 : 1.2);
+
+            const node = g.append('g').selectAll('g').data(nodes).join('g').attr('class', 'net-node');
+            // Nodes: avatar image if available, else colored circle
+            node.each(function(d) {
+                const g = d3.select(this);
+                if (d.avatar) {
+                    g.append('clipPath').attr('id', 'clip-' + d.id).append('circle').attr('r', d.r);
+                    g.append('image').attr('href', d.avatar).attr('x', -d.r).attr('y', -d.r)
+                        .attr('width', d.r*2).attr('height', d.r*2).attr('clip-path', 'url(#clip-' + d.id + ')');
+                    g.append('circle').attr('r', d.r).attr('fill', 'none')
+                        .attr('stroke', d.rarity === 3 ? '#b3262e' : d.rarity === 2 ? '#3a5c80' : '#cdc4b1').attr('stroke-width', 1.5);
+                } else {
+                    g.append('circle').attr('r', d.r).attr('fill', d.rarity === 3 ? '#b3262e' : d.rarity === 2 ? '#3a5c80' : '#8a8378')
+                        .attr('stroke', '#fbf8f0').attr('stroke-width', 1.5);
+                }
+            });
+            node.append('text').attr('dy', d => d.r + 12).attr('text-anchor', 'middle').text(d => d.name);
+
+            node.on('mouseover', (e, d) => {
+                tooltip.style.display = 'block';
+                tooltip.innerHTML = '<strong>' + d.name + '</strong><br>' + d.org + (d.role ? ' · ' + d.role : '');
+                tooltip.style.left = e.offsetX + 10 + 'px'; tooltip.style.top = e.offsetY - 10 + 'px';
+            }).on('mouseout', () => { tooltip.style.display = 'none'; })
+            .on('click', (e, d) => { openPersonModal(d.id); });
+
+            // Drag
+            node.call(d3.drag().on('start', (e, d) => { if (!e.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+                .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
+                .on('end', (e, d) => { if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }));
+
+            const sim = d3.forceSimulation(nodes)
+                .force('link', d3.forceLink(links).id(d => d.id).distance(80))
+                .force('charge', d3.forceManyBody().strength(-200))
+                .force('center', d3.forceCenter(width / 2, height / 2))
+                .force('collide', d3.forceCollide().radius(d => d.r + 10))
+                .on('tick', () => {
+                    link.attr('x1', d => d.source.x).attr('y1', d => d.source.y).attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+                    node.attr('transform', d => 'translate(' + d.x + ',' + d.y + ')');
+                });
+            networkSim = sim;
+        }
+
+        // ================= Phase 4: Map (Leaflet 情报地图) =================
+        let intelMapInstance = null;
+        // 城市坐标库（按地区分组，支持中英双语 key）
+        const CITY_DB = [
+            // 中国大陆
+            {name:'北京 Beijing',country:'中国',lat:39.9,lng:116.4},{name:'上海 Shanghai',country:'中国',lat:31.2,lng:121.5},
+            {name:'广州 Guangzhou',country:'中国',lat:23.1,lng:113.3},{name:'深圳 Shenzhen',country:'中国',lat:22.5,lng:114.1},
+            {name:'杭州 Hangzhou',country:'中国',lat:30.3,lng:120.2},{name:'南京 Nanjing',country:'中国',lat:32.1,lng:118.8},
+            {name:'成都 Chengdu',country:'中国',lat:30.6,lng:104.1},{name:'武汉 Wuhan',country:'中国',lat:30.6,lng:114.3},
+            {name:'西安 Xi\'an',country:'中国',lat:34.3,lng:108.9},{name:'重庆 Chongqing',country:'中国',lat:29.6,lng:106.5},
+            {name:'天津 Tianjin',country:'中国',lat:39.1,lng:117.2},{name:'长沙 Changsha',country:'中国',lat:28.2,lng:112.9},
+            {name:'合肥 Hefei',country:'中国',lat:31.8,lng:117.3},{name:'济南 Jinan',country:'中国',lat:36.7,lng:117.0},
+            {name:'青岛 Qingdao',country:'中国',lat:36.1,lng:120.4},{name:'大连 Dalian',country:'中国',lat:38.9,lng:121.6},
+            {name:'厦门 Xiamen',country:'中国',lat:24.5,lng:118.1},{name:'珠海 Zhuhai',country:'中国',lat:22.3,lng:113.6},
+            {name:'苏州 Suzhou',country:'中国',lat:31.3,lng:120.6},{name:'无锡 Wuxi',country:'中国',lat:31.5,lng:120.3},
+            {name:'郑州 Zhengzhou',country:'中国',lat:34.7,lng:113.7},{name:'昆明 Kunming',country:'中国',lat:25.0,lng:102.7},
+            {name:'哈尔滨 Harbin',country:'中国',lat:45.8,lng:126.6},{name:'长春 Changchun',country:'中国',lat:43.9,lng:125.3},
+            {name:'沈阳 Shenyang',country:'中国',lat:41.8,lng:123.4},{name:'福州 Fuzhou',country:'中国',lat:26.1,lng:119.3},
+            {name:'兰州 Lanzhou',country:'中国',lat:36.1,lng:103.8},{name:'乌鲁木齐 Urumqi',country:'中国',lat:43.8,lng:87.6},
+            {name:'拉萨 Lhasa',country:'中国',lat:29.7,lng:91.1},{name:'贵阳 Guiyang',country:'中国',lat:26.6,lng:106.7},
+            {name:'南宁 Nanning',country:'中国',lat:22.8,lng:108.4},{name:'海口 Haikou',country:'中国',lat:20.0,lng:110.4},
+            // 港澳台
+            {name:'香港 Hong Kong',country:'中国',lat:22.3,lng:114.2},{name:'澳门 Macau',country:'中国',lat:22.2,lng:113.5},
+            {name:'台北 Taipei',country:'中国',lat:25.0,lng:121.5},{name:'新竹 Hsinchu',country:'中国',lat:24.8,lng:121.0},
+            {name:'台中 Taichung',country:'中国',lat:24.1,lng:120.7},{name:'高雄 Kaohsiung',country:'中国',lat:22.6,lng:120.3},
+            // 日韩
+            {name:'东京 Tokyo',country:'日本',lat:35.7,lng:139.7},{name:'大阪 Osaka',country:'日本',lat:34.7,lng:135.5},
+            {name:'京都 Kyoto',country:'日本',lat:35.0,lng:135.8},{name:'名古屋 Nagoya',country:'日本',lat:35.2,lng:136.9},
+            {name:'福冈 Fukuoka',country:'日本',lat:33.6,lng:130.4},{name:'札幌 Sapporo',country:'日本',lat:43.1,lng:141.3},
+            {name:'筑波 Tsukuba',country:'日本',lat:36.1,lng:140.1},
+            {name:'首尔 Seoul',country:'韩国',lat:37.6,lng:127.0},{name:'釜山 Busan',country:'韩国',lat:35.2,lng:129.1},
+            {name:'大田 Daejeon',country:'韩国',lat:36.4,lng:127.4},
+            // 东南亚
+            {name:'新加坡 Singapore',country:'新加坡',lat:1.35,lng:103.8},
+            {name:'曼谷 Bangkok',country:'泰国',lat:13.8,lng:100.5},{name:'吉隆坡 Kuala Lumpur',country:'马来西亚',lat:3.1,lng:101.7},
+            {name:'雅加达 Jakarta',country:'印度尼西亚',lat:-6.2,lng:106.8},{name:'马尼拉 Manila',country:'菲律宾',lat:14.6,lng:121.0},
+            {name:'河内 Hanoi',country:'越南',lat:21.0,lng:105.9},
+            // 南亚
+            {name:'新德里 New Delhi',country:'印度',lat:28.6,lng:77.2},{name:'孟买 Mumbai',country:'印度',lat:19.1,lng:72.9},
+            {name:'班加罗尔 Bangalore',country:'印度',lat:13.0,lng:77.6},
+            // 中东
+            {name:'迪拜 Dubai',country:'阿联酋',lat:25.2,lng:55.3},{name:'阿布扎比 Abu Dhabi',country:'阿联酋',lat:24.5,lng:54.7},
+            {name:'特拉维夫 Tel Aviv',country:'以色列',lat:32.1,lng:34.8},
+            // 欧洲
+            {name:'伦敦 London',country:'英国',lat:51.5,lng:-0.1},{name:'爱丁堡 Edinburgh',country:'英国',lat:55.9,lng:-3.2},
+            {name:'剑桥 Cambridge',country:'英国',lat:52.2,lng:0.1},{name:'牛津 Oxford',country:'英国',lat:51.8,lng:-1.3},
+            {name:'巴黎 Paris',country:'法国',lat:48.9,lng:2.3},{name:'里昂 Lyon',country:'法国',lat:45.8,lng:4.8},
+            {name:'柏林 Berlin',country:'德国',lat:52.5,lng:13.4},{name:'慕尼黑 Munich',country:'德国',lat:48.1,lng:11.6},
+            {name:'海德堡 Heidelberg',country:'德国',lat:49.4,lng:8.7},{name:'汉堡 Hamburg',country:'德国',lat:53.6,lng:10.0},
+            {name:'苏黎世 Zurich',country:'瑞士',lat:47.4,lng:8.5},{name:'日内瓦 Geneva',country:'瑞士',lat:46.2,lng:6.1},
+            {name:'洛桑 Lausanne',country:'瑞士',lat:46.5,lng:6.6},
+            {name:'阿姆斯特丹 Amsterdam',country:'荷兰',lat:52.4,lng:4.9},{name:'鹿特丹 Rotterdam',country:'荷兰',lat:51.9,lng:4.5},
+            {name:'罗马 Rome',country:'意大利',lat:41.9,lng:12.5},{name:'米兰 Milan',country:'意大利',lat:45.5,lng:9.2},
+            {name:'马德里 Madrid',country:'西班牙',lat:40.4,lng:-3.7},{name:'巴塞罗那 Barcelona',country:'西班牙',lat:41.4,lng:2.2},
+            {name:'维也纳 Vienna',country:'奥地利',lat:48.2,lng:16.4},{name:'布拉格 Prague',country:'捷克',lat:50.1,lng:14.4},
+            {name:'华沙 Warsaw',country:'波兰',lat:52.2,lng:21.0},{name:'布鲁塞尔 Brussels',country:'比利时',lat:50.8,lng:4.4},
+            {name:'赫尔辛基 Helsinki',country:'芬兰',lat:60.2,lng:24.9},{name:'斯德哥尔摩 Stockholm',country:'瑞典',lat:59.3,lng:18.1},
+            {name:'哥本哈根 Copenhagen',country:'丹麦',lat:55.7,lng:12.6},{name:'奥斯陆 Oslo',country:'挪威',lat:59.9,lng:10.7},
+            {name:'莫斯科 Moscow',country:'俄罗斯',lat:55.8,lng:37.6},{name:'圣彼得堡 St Petersburg',country:'俄罗斯',lat:59.9,lng:30.3},
+            {name:'里斯本 Lisbon',country:'葡萄牙',lat:38.7,lng:-9.1},{name:'都柏林 Dublin',country:'爱尔兰',lat:53.3,lng:-6.3},
+            {name:'雅典 Athens',country:'希腊',lat:37.98,lng:23.7},{name:'伊斯坦布尔 Istanbul',country:'土耳其',lat:41.0,lng:29.0},
+            // 北美
+            {name:'纽约 New York',country:'美国',lat:40.7,lng:-74.0},{name:'波士顿 Boston',country:'美国',lat:42.4,lng:-71.1},
+            {name:'旧金山 San Francisco',country:'美国',lat:37.8,lng:-122.4},{name:'洛杉矶 Los Angeles',country:'美国',lat:34.1,lng:-118.2},
+            {name:'西雅图 Seattle',country:'美国',lat:47.6,lng:-122.3},{name:'芝加哥 Chicago',country:'美国',lat:41.9,lng:-87.6},
+            {name:'匹兹堡 Pittsburgh',country:'美国',lat:40.44,lng:-80.0},{name:'华盛顿 Washington DC',country:'美国',lat:38.9,lng:-77.0},
+            {name:'费城 Philadelphia',country:'美国',lat:40.0,lng:-75.2},{name:'亚特兰大 Atlanta',country:'美国',lat:33.7,lng:-84.4},
+            {name:'迈阿密 Miami',country:'美国',lat:25.8,lng:-80.2},{name:'休斯顿 Houston',country:'美国',lat:29.8,lng:-95.4},
+            {name:'圣地亚哥 San Diego',country:'美国',lat:32.7,lng:-117.2},{name:'奥斯汀 Austin',country:'美国',lat:30.3,lng:-97.7},
+            {name:'帕洛阿尔托 Palo Alto',country:'美国',lat:37.4,lng:-122.1},{name:'圣何塞 San Jose',country:'美国',lat:37.3,lng:-121.9},
+            {name:'安娜堡 Ann Arbor',country:'美国',lat:42.3,lng:-83.7},{name:'伊萨卡 Ithaca',country:'美国',lat:42.4,lng:-76.5},
+            {name:'普林斯顿 Princeton',country:'美国',lat:40.4,lng:-74.7},{name:'斯坦福 Stanford',country:'美国',lat:37.4,lng:-122.2},
+            {name:'多伦多 Toronto',country:'加拿大',lat:43.7,lng:-79.4},{name:'蒙特利尔 Montreal',country:'加拿大',lat:45.5,lng:-73.6},
+            {name:'温哥华 Vancouver',country:'加拿大',lat:49.3,lng:-123.1},{name:'渥太华 Ottawa',country:'加拿大',lat:45.4,lng:-75.7},
+            {name:'滑铁卢 Waterloo',country:'加拿大',lat:43.5,lng:-80.5},{name:'埃德蒙顿 Edmonton',country:'加拿大',lat:53.5,lng:-113.5},
+            // 大洋洲
+            {name:'悉尼 Sydney',country:'澳大利亚',lat:-33.9,lng:151.2},{name:'墨尔本 Melbourne',country:'澳大利亚',lat:-37.8,lng:145.0},
+            {name:'布里斯班 Brisbane',country:'澳大利亚',lat:-27.5,lng:153.0},{name:'堪培拉 Canberra',country:'澳大利亚',lat:-35.3,lng:149.1},
+            {name:'奥克兰 Auckland',country:'新西兰',lat:-36.8,lng:174.8},
+            // 南美
+            {name:'圣保罗 São Paulo',country:'巴西',lat:-23.6,lng:-46.6},{name:'里约 Rio de Janeiro',country:'巴西',lat:-22.9,lng:-43.2},
+            {name:'布宜诺斯艾利斯 Buenos Aires',country:'阿根廷',lat:-34.6,lng:-58.4},
+            {name:'圣地亚哥 Santiago',country:'智利',lat:-33.4,lng:-70.6},{name:'墨西哥城 Mexico City',country:'墨西哥',lat:19.4,lng:-99.1},
+            // 非洲
+            {name:'开罗 Cairo',country:'埃及',lat:30.0,lng:31.2},{name:'开普敦 Cape Town',country:'南非',lat:-33.9,lng:18.4},
+            {name:'内罗毕 Nairobi',country:'肯尼亚',lat:-1.3,lng:36.8},
+        ];
+
+        // 用户自定义城市（存在 appData 中同步）
+        function getAllCities() {
+            const custom = appData.customCities || [];
+            return [...CITY_DB, ...custom];
+        }
+
+        // 兼容旧版 CITY_COORDS 查找
+        function guessCoords(location) {
+            if (!location) return null;
+            const loc = location.toLowerCase().trim();
+            const all = getAllCities();
+            // Exact match
+            const exact = all.find(c => c.name.toLowerCase() === loc);
+            if (exact) return [exact.lat, exact.lng];
+            // Partial match
+            const partial = all.find(c => c.name.toLowerCase().includes(loc) || loc.includes(c.name.toLowerCase().split(' ')[0]));
+            if (partial) return [partial.lat, partial.lng];
+            return null;
+        }
+
+        // 构建 datalist options
+        function buildCityDatalist() {
+            const all = getAllCities();
+            // Group by country
+            const groups = {};
+            all.forEach(c => { if (!groups[c.country]) groups[c.country] = []; groups[c.country].push(c); });
+            let html = '';
+            Object.keys(groups).sort().forEach(country => {
+                groups[country].forEach(c => { html += '<option value="' + c.name + '" label="' + country + '">'; });
+            });
+            document.querySelectorAll('.city-datalist').forEach(dl => dl.innerHTML = html);
+        }
+
+        function addCustomCity() {
+            const name = prompt('城市名（如: 剑桥 Cambridge）');
+            if (!name) return;
+            const country = prompt('所属国家') || '';
+            const latStr = prompt('纬度 (如: 52.2)');
+            const lngStr = prompt('经度 (如: 0.12)');
+            const lat = parseFloat(latStr); const lng = parseFloat(lngStr);
+            if (isNaN(lat) || isNaN(lng)) { alert('坐标格式不正确'); return; }
+            if (!appData.customCities) appData.customCities = [];
+            appData.customCities.push({ name, country, lat, lng });
+            saveData(); buildCityDatalist();
+            alert('已添加: ' + name);
+        }
+
+        // guessCoords now defined above with CITY_DB
+
+        function renderMap() {
+            ensureIntelData();
+            const container = document.getElementById('intelMap');
+            if (!container || typeof L === 'undefined') return;
+
+            if (intelMapInstance) { intelMapInstance.remove(); intelMapInstance = null; }
+
+            intelMapInstance = L.map('intelMap', { scrollWheelZoom: true }).setView([30, 110], 3);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OSM', maxZoom: 18
+            }).addTo(intelMapInstance);
+
+            const confIcon = L.divIcon({ className: '', html: '<div style="width:12px;height:12px;background:#b3262e;border:2px solid #fbf8f0;border-radius:50%;box-shadow:0 0 6px rgba(179,38,46,0.4);"></div>', iconSize: [12, 12], iconAnchor: [6, 6] });
+            const personIcon = L.divIcon({ className: '', html: '<div style="width:10px;height:10px;background:#3a5c80;border:2px solid #fbf8f0;border-radius:50%;box-shadow:0 0 6px rgba(58,92,128,0.4);"></div>', iconSize: [10, 10], iconAnchor: [5, 5] });
+
+            const bounds = [];
+
+            // Conference markers
+            appData.conferences.forEach(c => {
+                const coords = c.geoCoord || guessCoords(c.location);
+                if (coords) {
+                    const people = appData.persons.filter(p => (p.conferenceIds||[]).includes(c.id)).map(p => p.name).join(', ');
+                    L.marker(coords, { icon: confIcon }).addTo(intelMapInstance)
+                        .bindPopup('<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;"><strong>' + escapeHtml(c.title) + '</strong><br>' + c.date + ' · ' + escapeHtml(c.location||'') + (people ? '<br><span style="color:#3a5c80;">PPL: ' + escapeHtml(people) + '</span>' : '') + '</div>');
+                    bounds.push(coords);
+                }
+            });
+
+            // Person markers
+            appData.persons.forEach(p => {
+                const coords = p.geoCoord || guessCoords(p.location) || guessCoords(p.org);
+                if (coords) {
+                    L.marker(coords, { icon: personIcon }).addTo(intelMapInstance)
+                        .bindPopup('<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;"><strong>' + escapeHtml(p.name) + '</strong><br>' + escapeHtml(p.org||'') + (p.role ? ' · ' + escapeHtml(p.role) : '') + '</div>');
+                    bounds.push(coords);
+                }
+            });
+
+            if (bounds.length > 0) {
+                intelMapInstance.fitBounds(bounds, { padding: [30, 30], maxZoom: 6 });
+            }
+        }
+
+        // ================= Task Functions =================
+        function ensureTaskData() { if (!appData.taskBoard) appData.taskBoard = []; }
+
+        function openNewTaskModal() {
+            document.getElementById('taskTitle').value = '';
+            document.getElementById('taskPriority').value = 'medium';
+            document.getElementById('taskDeadline').value = '';
+            document.getElementById('taskNotes').value = '';
+            document.getElementById('taskModal').classList.add('active');
+        }
+
+        function saveTask() {
+            ensureTaskData();
+            const title = document.getElementById('taskTitle').value.trim();
+            if (!title) { alert('请输入任务名称'); return; }
+            appData.taskBoard.push({
+                id: Date.now().toString(36), title,
+                priority: document.getElementById('taskPriority').value,
+                status: 'backlog',
+                deadline: document.getElementById('taskDeadline').value,
+                notes: document.getElementById('taskNotes').value.trim(),
+                createdAt: new Date().toISOString()
+            });
+            saveData();
+            document.getElementById('taskModal').classList.remove('active');
+            renderTaskBoard(); updateNavCounts();
+        }
+
+        function moveTask(id, newStatus) {
+            ensureTaskData();
+            const task = appData.taskBoard.find(t => t.id === id);
+            if (task) { task.status = newStatus; saveData(); renderTaskBoard(); updateNavCounts(); }
+        }
+
+        function deleteTask(id) {
+            if (!confirm('确认删除此任务？')) return;
+            appData.taskBoard = appData.taskBoard.filter(t => t.id !== id);
+            saveData(); renderTaskBoard(); updateNavCounts();
+        }
+
+        function renderTaskBoard() {
+            ensureTaskData();
+            const cols = { backlog:'taskColBacklog', active:'taskColActive', done:'taskColDone' };
+            const priorityColors = { high:'#b3262e', medium:'#c08a3a', low:'#8a8378' };
+            const nextStatus = { backlog:'active', active:'done' };
+            const prevStatus = { active:'backlog', done:'active' };
+            Object.keys(cols).forEach(status => {
+                const el = document.getElementById(cols[status]);
+                if (!el) return;
+                const tasks = appData.taskBoard.filter(t => t.status === status);
+                document.getElementById('task' + status[0].toUpperCase() + status.slice(1) + 'Count').textContent = tasks.length;
+                if (tasks.length === 0) {
+                    el.innerHTML = '<div style="text-align:center;padding:20px 0;color:#cdc4b1;font-family:\'JetBrains Mono\',monospace;font-size:9px;letter-spacing:0.1em;">EMPTY</div>';
+                } else {
+                    el.innerHTML = tasks.map(t => {
+                        const pc = priorityColors[t.priority] || '#8a8378';
+                        const fwd = nextStatus[status] ? '<button onclick="moveTask(\'' + t.id + '\',\'' + nextStatus[status] + '\')" style="background:none;border:none;color:#3a5c80;cursor:pointer;font-size:10px;" title="→"><i class="fas fa-arrow-right"></i></button>' : '';
+                        const bwd = prevStatus[status] ? '<button onclick="moveTask(\'' + t.id + '\',\'' + prevStatus[status] + '\')" style="background:none;border:none;color:#8a8378;cursor:pointer;font-size:10px;" title="←"><i class="fas fa-arrow-left"></i></button>' : '';
+                        const dl = t.deadline ? '<div class="mbcc-label" style="margin-top:4px;">DUE ' + t.deadline + '</div>' : '';
+                        return '<div style="border:1px solid #cdc4b1;border-left:3px solid ' + pc + ';padding:8px 10px;background:rgba(251,248,240,0.58);"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div style="font-size:12px;font-weight:600;color:#1a1814;flex:1;min-width:0;">' + escapeHtml(t.title) + '</div><div style="display:flex;gap:2px;flex-shrink:0;">' + bwd + fwd + '<button onclick="deleteTask(\'' + t.id + '\')" style="background:none;border:none;color:#cdc4b1;cursor:pointer;font-size:10px;" title="×"><i class="fas fa-times"></i></button></div></div>' + (t.notes ? '<div style="font-size:10px;color:#8a8378;margin-top:4px;line-height:1.4;">' + escapeHtml(t.notes).slice(0,80) + '</div>' : '') + dl + '</div>';
+                    }).join('');
+                }
+            });
+        }
+
         // ================= 渲染与初始化 =================
 
         function renderAll() {
@@ -2698,10 +3913,17 @@
         }
 
         function init() {
-            loadData(); loadAvatar(); loadCustomTitles(); bindEvents();
-            document.getElementById("currentDate").innerText = new Date().toLocaleDateString();
-            renderAll(); initDragAndDrop();
-            setInterval(() => { document.getElementById("currentDate").innerText = new Date().toLocaleDateString(); renderAll(); }, 60000);
+            try {
+                loadData(); loadAvatar(); loadCustomTitles(); bindEvents(); router(); updateNavCounts();
+                document.getElementById("currentDate").innerText = new Date().toLocaleDateString();
+                renderAll(); initDragAndDrop();
+                setInterval(() => { document.getElementById("currentDate").innerText = new Date().toLocaleDateString(); renderAll(); }, 60000);
+            } catch(e) {
+                console.error('MBCC init error:', e);
+                // 确保加载动画仍然消失
+                const ov = document.getElementById('mbccLoadingOverlay');
+                if (ov) { ov.classList.add('fade-out'); setTimeout(() => ov.style.display = 'none', 800); }
+            }
         }
 
         init();
