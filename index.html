@@ -3340,15 +3340,8 @@
             const statusEl = document.getElementById('loadingStatusText');
             const tapHint = document.getElementById('loadingTapHint');
 
-            // 尝试播放开场音效（桌面端通常可直接播放）
-            let bootSoundPlayed = false;
-            function tryPlayBoot() {
-                if (!bootSoundPlayed) { bootSoundPlayed = true; playMBCCBootSound(); if (tapHint) tapHint.style.display = 'none'; }
-            }
-            tryPlayBoot();
-            // iOS / 移动端需要用户手势，点击/触摸兜底
-            overlay.addEventListener('click', tryPlayBoot, { once: true });
-            overlay.addEventListener('touchstart', tryPlayBoot, { once: true });
+            // 开场音效已禁用
+            if (tapHint) tapHint.style.display = 'none';
 
             const scrambleChars = '▓░▒█▌▐│┤╡╢╖╕╣║╗╝╜╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌';
             function updateScramble() { let s = ''; for (let i = 0; i < 40; i++) s += scrambleChars[Math.floor(Math.random() * scrambleChars.length)]; scrambleEl.textContent = s; }
