@@ -1708,57 +1708,69 @@
         }
 
         // ================= 签到/签退 音效 · MBCC暗色钢琴 =================
-        // 合成钢琴单音：多谐波 + 指数衰减 + 轻微失谐
-        function _pianoNote(ctx, dest, freq, time, vel, dur) {
+        // 合成吉他单音：基频+泛音快速衰减 + 拨弦噪声 + 琴体共鸣
+        function _guitarNote(ctx, dest, freq, time, vel, dur) {
+            // 吉他泛音结构：奇偶谐波都有，但高次衰减更快
             const harmonics = [
-                [1, 1], [2, 0.5], [3, 0.18], [4, 0.08], [5, 0.04], [6, 0.02]
+                [1, 1], [2, 0.6], [3, 0.35], [4, 0.15], [5, 0.08], [6, 0.04], [7, 0.02]
             ];
             harmonics.forEach(([h, amp]) => {
                 const osc = ctx.createOscillator();
                 const g = ctx.createGain();
                 osc.type = 'sine';
-                // 高次谐波略微偏高，模拟真钢琴的非谐性
-                osc.frequency.value = freq * h * (1 + h * 0.0003);
+                osc.frequency.value = freq * h;
                 const peak = vel * amp;
+                // 吉他起音比钢琴稍慢，衰减更柔和
                 g.gain.setValueAtTime(0, time);
-                g.gain.linearRampToValueAtTime(peak, time + 0.008);
-                g.gain.exponentialRampToValueAtTime(peak * 0.4, time + dur * 0.3);
+                g.gain.linearRampToValueAtTime(peak, time + 0.005);
+                g.gain.exponentialRampToValueAtTime(peak * 0.35, time + dur * 0.25);
                 g.gain.exponentialRampToValueAtTime(0.001, time + dur);
+                // 高次谐波衰减更快
+                const hDur = dur / (1 + h * 0.15);
                 osc.connect(g); g.connect(dest);
-                osc.start(time); osc.stop(time + dur + 0.05);
+                osc.start(time); osc.stop(time + hDur + 0.05);
             });
-            // 琴槌敲击噪声
-            const hLen = Math.floor(ctx.sampleRate * 0.015);
-            const hBuf = ctx.createBuffer(1, hLen, ctx.sampleRate);
-            const hd = hBuf.getChannelData(0);
-            for (let i = 0; i < hLen; i++) hd[i] = (Math.random() * 2 - 1) * (1 - i / hLen);
-            const hs = ctx.createBufferSource(); hs.buffer = hBuf;
-            const hpf = ctx.createBiquadFilter();
-            hpf.type = 'highpass'; hpf.frequency.value = 3000;
-            const hg = ctx.createGain(); hg.gain.value = vel * 0.15;
-            hs.connect(hpf); hpf.connect(hg); hg.connect(dest);
-            hs.start(time);
+            // 拨弦噪声 — 指甲/拨片触弦的细微沙沙声
+            const pLen = Math.floor(ctx.sampleRate * 0.025);
+            const pBuf = ctx.createBuffer(1, pLen, ctx.sampleRate);
+            const pd = pBuf.getChannelData(0);
+            for (let i = 0; i < pLen; i++) pd[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / pLen, 2);
+            const ps = ctx.createBufferSource(); ps.buffer = pBuf;
+            const pbpf = ctx.createBiquadFilter();
+            pbpf.type = 'bandpass'; pbpf.frequency.value = 2500; pbpf.Q.value = 2;
+            const pg = ctx.createGain(); pg.gain.value = vel * 0.12;
+            ps.connect(pbpf); pbpf.connect(pg); pg.connect(dest);
+            ps.start(time);
+            // 琴体共鸣 — 低频微弱振动
+            const body = ctx.createOscillator();
+            const bg = ctx.createGain();
+            body.type = 'sine'; body.frequency.value = freq * 0.5;
+            bg.gain.setValueAtTime(0, time);
+            bg.gain.linearRampToValueAtTime(vel * 0.06, time + 0.01);
+            bg.gain.exponentialRampToValueAtTime(0.001, time + dur * 0.6);
+            body.connect(bg); bg.connect(dest);
+            body.start(time); body.stop(time + dur * 0.6 + 0.05);
         }
 
         function playCheckSound(type) {
             try {
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
                 const master = ctx.createGain();
-                master.gain.setValueAtTime(0.15, ctx.currentTime);
+                master.gain.setValueAtTime(0.18, ctx.currentTime);
                 master.connect(ctx.destination);
                 const t0 = ctx.currentTime;
 
-                // 签到：D小调 D4→F4→A4，轻柔上行，像晨光透过矫正局的窗
-                // 签退：A小调 E4→C4→A3，缓缓下沉，一天的重量落定
+                // 签到：Am琶音上行 A3→C4→E4→A4，指弹拨弦，踏入矫正局
+                // 签退：Dm下行 D4→A3→F3→D3，沉入暗处
                 const notes = type === 'end'
-                    ? [[330, 0, 0.45], [262, 0.22, 0.35], [220, 0.44, 0.4]]
-                    : [[294, 0, 0.45], [349, 0.22, 0.35], [440, 0.44, 0.3]];
+                    ? [[294, 0, 0.4], [220, 0.16, 0.35], [175, 0.32, 0.3], [147, 0.48, 0.35]]
+                    : [[220, 0, 0.4], [262, 0.16, 0.35], [330, 0.32, 0.3], [440, 0.48, 0.25]];
 
                 notes.forEach(([freq, delay, vel]) => {
-                    _pianoNote(ctx, master, freq, t0 + delay, vel, 1.0);
+                    _guitarNote(ctx, master, freq, t0 + delay, vel, 1.2);
                 });
 
-                setTimeout(() => ctx.close(), 2000);
+                setTimeout(() => ctx.close(), 2200);
             } catch(e) { /* silent */ }
         }
 
