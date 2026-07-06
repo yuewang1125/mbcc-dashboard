@@ -189,6 +189,68 @@
         .loading-progress-line { width: min(520px, 70vw); height: 2px; background: rgba(255,255,255,0.08); margin-top: 8px; position: relative; overflow: hidden; }
         .loading-progress-fill { position: absolute; top: 0; left: 0; height: 100%; background: #7a1a1f; box-shadow: 0 0 8px rgba(122,26,31,0.6), 2px 0 12px rgba(122,26,31,0.4); width: 0%; transition: width 0.15s linear; }
         @keyframes bannerFadeIn { 0% { opacity: 0; transform: scale(0.95); } 100% { opacity: 1; transform: scale(1); } }
+        @keyframes tapPulse { 0%,100% { opacity: 0.4; } 50% { opacity: 0.9; } }
+
+        /* ================= 签到/签退 MBCC 风格动画 ================= */
+        #checkOverlay {
+            --check-accent: #3a5c80;
+            position: fixed; top:0; left:0; width:100%; height:100%;
+            background: rgba(0,0,0,0.92);
+            z-index: 9998;
+            display: none;
+            align-items: center; justify-content: center;
+            flex-direction: column;
+            opacity: 0;
+            transition: opacity 0.25s ease;
+        }
+        #checkOverlay.active { display:flex; opacity:1; }
+        #checkOverlay.fade-out { opacity:0; }
+        #checkOverlay .check-title {
+            font-family: 'Big Shoulders Display', sans-serif;
+            font-size: clamp(1.6rem, 4vw, 2.8rem);
+            font-weight: 900;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--check-accent);
+            text-shadow: 0 0 16px color-mix(in srgb, var(--check-accent) 50%, transparent);
+            opacity: 0;
+            transform: scale(0.9);
+            animation: bannerFadeIn 0.4s ease 0.1s forwards;
+        }
+        #checkOverlay .check-scramble {
+            font-family: 'Courier New', monospace;
+            font-size: 0.6rem;
+            color: rgba(255,255,255,0.15);
+            letter-spacing: 0.05em;
+            margin-top: 10px;
+        }
+        #checkOverlay .check-status {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: rgba(255,255,255,0.5);
+            letter-spacing: 0.12em;
+            margin-top: 10px;
+            opacity: 0;
+            animation: bannerFadeIn 0.3s ease 0.15s forwards;
+        }
+        #checkOverlay .check-status.success { color: var(--check-accent); text-shadow: 0 0 8px color-mix(in srgb, var(--check-accent) 40%, transparent); }
+        #checkOverlay .check-bar {
+            width: min(320px, 50vw); height: 2px;
+            background: rgba(255,255,255,0.08);
+            margin-top: 8px; position: relative; overflow: hidden;
+        }
+        #checkOverlay .check-bar-fill {
+            position: absolute; top:0; left:0; height:100%;
+            background: var(--check-accent);
+            box-shadow: 0 0 8px color-mix(in srgb, var(--check-accent) 60%, transparent);
+            width: 0%; transition: width 0.1s linear;
+        }
+        #checkOverlay .check-stripes {
+            width: 40px; height: 6px;
+            background: repeating-linear-gradient(-45deg, var(--check-accent) 0px, var(--check-accent) 2px, transparent 2px, transparent 4px);
+            margin-top: 12px;
+            opacity: 0; animation: bannerFadeIn 0.3s ease 0.05s forwards;
+        }
 
         /* ================= 手机端竖屏适配 ================= */
         @media (max-width: 768px) {
@@ -445,9 +507,19 @@
                     <div class="loading-progress-line" style="margin-top:2px;">
                         <div class="loading-progress-fill" id="mbccProgressBar"></div>
                     </div>
+                    <div id="loadingTapHint" style="margin-top:10px; font-family:'JetBrains Mono',monospace; font-size:10px; color:rgba(255,255,255,0.35); letter-spacing:0.12em; text-transform:uppercase; animation: tapPulse 2s ease-in-out infinite;">轻触屏幕以启用音效</div>
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- ===== 签到/签退 MBCC 风格全屏动画 ===== -->
+    <div id="checkOverlay">
+        <div class="check-stripes"></div>
+        <div class="check-title" id="checkTitle">IDENTITY VERIFY</div>
+        <div class="check-scramble" id="checkScramble"></div>
+        <div class="check-bar"><div class="check-bar-fill" id="checkBarFill"></div></div>
+        <div class="check-status" id="checkStatusText">AUTHENTICATING ...</div>
     </div>
 
     <div class="max-w-7xl mx-auto">
@@ -607,56 +679,54 @@
                         <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#8a8378; letter-spacing:0.1em; margin-top:4px;">CHECK-IN / CHECK-OUT · 真实四段式</div>
                     </div>
                 </div>
+                <!-- 智能签到/签退按钮 -->
+                <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
+                    <button id="smartCheckInBtn" onclick="smartCheck('start')" style="flex:1; max-width:200px; padding:10px 0; background:#3a5c80; color:#fff; border:none; font-size:14px; font-weight:900; font-family:'Big Shoulders Display',sans-serif; letter-spacing:0.08em; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:6px;" onmouseenter="this.style.opacity='0.85'" onmouseleave="this.style.opacity='1'"><i class="fas fa-sign-in-alt"></i> 签到值班</button>
+                    <button id="smartCheckOutBtn" onclick="smartCheck('end')" style="flex:1; max-width:200px; padding:10px 0; background:#4b8a6c; color:#fff; border:none; font-size:14px; font-weight:900; font-family:'Big Shoulders Display',sans-serif; letter-spacing:0.08em; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:6px;" onmouseenter="this.style.opacity='0.85'" onmouseleave="this.style.opacity='1'"><i class="fas fa-sign-out-alt"></i> 签退</button>
+                    <div id="currentPeriodLabel" style="font-family:'JetBrains Mono',monospace; font-size:12px; color:#8a8378; display:flex; align-items:center; gap:6px;"></div>
+                </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <!-- 早班：绿色系 -->
-                    <div class="p-3 border border-[#cdc4b1]" style="background: #fbf8f0; border-top: 3px solid #4b8a6c;">
+                    <div id="periodCard-morning" class="p-3 border border-[#cdc4b1]" style="background: #fbf8f0; border-top: 3px solid #4b8a6c; transition: box-shadow 0.3s;">
                         <div class="flex items-center justify-between mb-2">
                             <h3 class="font-bold text-[#4b8a6c] text-sm flex items-center gap-1"><i class="fas fa-sun"></i> <span class="module-title" data-module="period-morning" data-default="早班值守">早班值守</span></h3>
-                            <span class="text-[10px] text-[#8a8378] font-mono-dispatch tracking-wider module-title" data-module="period-morning-time" data-default="08:00-12:00">08:00-12:00</span>
-                        </div>
-                        <div class="flex gap-1.5 mb-2">
-                            <button onclick="checkTime('morning','start')" class="flex-1 bg-[#4b8a6c] text-white py-1 text-xs font-bold hover:opacity-80 transition font-mono-dispatch tracking-wider"><span class="module-title" data-module="btn-checkin" data-default="签到值班">签到值班</span></button>
-                            <button onclick="checkTime('morning','end')" class="flex-1 bg-[#2d5a42] text-white py-1 text-xs font-bold hover:opacity-80 transition font-mono-dispatch tracking-wider"><span class="module-title" data-module="btn-checkout" data-default="签退">签退</span></button>
-                            <button onclick="openCheckModal('morning')" class="bg-[#f3efe6] text-[#8a8378] px-2 py-1 text-xs border border-[#cdc4b1] hover:text-[#4b8a6c] transition" title="补录/复盘"><i class="fas fa-edit"></i></button>
+                            <div style="display:flex; align-items:center; gap:4px;">
+                                <span class="text-[10px] text-[#8a8378] font-mono-dispatch tracking-wider module-title" data-module="period-morning-time" data-default="08:00-12:00">08:00-12:00</span>
+                                <button onclick="openCheckModal('morning')" class="bg-[#f3efe6] text-[#8a8378] px-1.5 py-0.5 text-xs border border-[#cdc4b1] hover:text-[#4b8a6c] transition" title="补录/复盘" style="line-height:1;"><i class="fas fa-edit" style="font-size:10px;"></i></button>
+                            </div>
                         </div>
                         <div id="morning" class="text-[11px] p-1.5 text-[#56514a] font-mono border border-[#cdc4b1] min-h-[44px]" style="background:#f3efe6;">始: -  终: -</div>
                     </div>
                     <!-- 午班：钢蓝色系 -->
-                    <div class="p-3 border border-[#cdc4b1]" style="background: #fbf8f0; border-top: 3px solid #3a5c80;">
+                    <div id="periodCard-afternoon" class="p-3 border border-[#cdc4b1]" style="background: #fbf8f0; border-top: 3px solid #3a5c80; transition: box-shadow 0.3s;">
                         <div class="flex items-center justify-between mb-2">
                             <h3 class="font-bold text-[#3a5c80] text-sm flex items-center gap-1"><i class="fas fa-cloud-sun"></i> <span class="module-title" data-module="period-afternoon" data-default="午班值守">午班值守</span></h3>
-                            <span class="text-[10px] text-[#8a8378] font-mono-dispatch tracking-wider module-title" data-module="period-afternoon-time" data-default="12:00-18:00">12:00-18:00</span>
-                        </div>
-                        <div class="flex gap-1.5 mb-2">
-                            <button onclick="checkTime('afternoon','start')" class="flex-1 bg-[#3a5c80] text-white py-1 text-xs font-bold hover:opacity-80 transition font-mono-dispatch tracking-wider"><span class="module-title" data-module="btn-checkin" data-default="签到值班">签到值班</span></button>
-                            <button onclick="checkTime('afternoon','end')" class="flex-1 bg-[#2a4260] text-white py-1 text-xs font-bold hover:opacity-80 transition font-mono-dispatch tracking-wider"><span class="module-title" data-module="btn-checkout" data-default="签退">签退</span></button>
-                            <button onclick="openCheckModal('afternoon')" class="bg-[#f3efe6] text-[#8a8378] px-2 py-1 text-xs border border-[#cdc4b1] hover:text-[#3a5c80] transition" title="补录/复盘"><i class="fas fa-edit"></i></button>
+                            <div style="display:flex; align-items:center; gap:4px;">
+                                <span class="text-[10px] text-[#8a8378] font-mono-dispatch tracking-wider module-title" data-module="period-afternoon-time" data-default="12:00-18:00">12:00-18:00</span>
+                                <button onclick="openCheckModal('afternoon')" class="bg-[#f3efe6] text-[#8a8378] px-1.5 py-0.5 text-xs border border-[#cdc4b1] hover:text-[#3a5c80] transition" title="补录/复盘" style="line-height:1;"><i class="fas fa-edit" style="font-size:10px;"></i></button>
+                            </div>
                         </div>
                         <div id="afternoon" class="text-[11px] p-1.5 text-[#56514a] font-mono border border-[#cdc4b1] min-h-[44px]" style="background:#f3efe6;">始: -  终: -</div>
                     </div>
                     <!-- 晚班：琥珀色系 -->
-                    <div class="p-3 border border-[#cdc4b1]" style="background: #fbf8f0; border-top: 3px solid #c08a3a;">
+                    <div id="periodCard-evening" class="p-3 border border-[#cdc4b1]" style="background: #fbf8f0; border-top: 3px solid #c08a3a; transition: box-shadow 0.3s;">
                         <div class="flex items-center justify-between mb-2">
                             <h3 class="font-bold text-[#c08a3a] text-sm flex items-center gap-1"><i class="fas fa-moon"></i> <span class="module-title" data-module="period-evening" data-default="晚班值守">晚班值守</span></h3>
-                            <span class="text-[10px] text-[#8a8378] font-mono-dispatch tracking-wider module-title" data-module="period-evening-time" data-default="18:00-23:00">18:00-23:00</span>
-                        </div>
-                        <div class="flex gap-1.5 mb-2">
-                            <button onclick="checkTime('evening','start')" class="flex-1 bg-[#c08a3a] text-white py-1 text-xs font-bold hover:opacity-80 transition font-mono-dispatch tracking-wider"><span class="module-title" data-module="btn-checkin" data-default="签到值班">签到值班</span></button>
-                            <button onclick="checkTime('evening','end')" class="flex-1 bg-[#8a6420] text-white py-1 text-xs font-bold hover:opacity-80 transition font-mono-dispatch tracking-wider"><span class="module-title" data-module="btn-checkout" data-default="签退">签退</span></button>
-                            <button onclick="openCheckModal('evening')" class="bg-[#f3efe6] text-[#8a8378] px-2 py-1 text-xs border border-[#cdc4b1] hover:text-[#c08a3a] transition" title="补录/复盘"><i class="fas fa-edit"></i></button>
+                            <div style="display:flex; align-items:center; gap:4px;">
+                                <span class="text-[10px] text-[#8a8378] font-mono-dispatch tracking-wider module-title" data-module="period-evening-time" data-default="18:00-23:00">18:00-23:00</span>
+                                <button onclick="openCheckModal('evening')" class="bg-[#f3efe6] text-[#8a8378] px-1.5 py-0.5 text-xs border border-[#cdc4b1] hover:text-[#c08a3a] transition" title="补录/复盘" style="line-height:1;"><i class="fas fa-edit" style="font-size:10px;"></i></button>
+                            </div>
                         </div>
                         <div id="evening" class="text-[11px] p-1.5 text-[#56514a] font-mono border border-[#cdc4b1] min-h-[44px]" style="background:#f3efe6;">始: -  终: -</div>
                     </div>
                     <!-- 深夜：灰色系 -->
-                    <div class="p-3 border border-[#cdc4b1]" style="background: #fbf8f0; border-top: 3px solid #7a7280;">
+                    <div id="periodCard-night" class="p-3 border border-[#cdc4b1]" style="background: #fbf8f0; border-top: 3px solid #7a7280; transition: box-shadow 0.3s;">
                         <div class="flex items-center justify-between mb-2">
                             <h3 class="font-bold text-[#7a7280] text-sm flex items-center gap-1"><i class="fas fa-star"></i> <span class="module-title" data-module="period-night" data-default="深夜加班">深夜加班</span></h3>
-                            <span class="text-[10px] text-[#8a8378] font-mono-dispatch tracking-wider module-title" data-module="period-night-time" data-default="23:00-次日">23:00-次日</span>
-                        </div>
-                        <div class="flex gap-1.5 mb-2">
-                            <button onclick="checkTime('night','start')" class="flex-1 bg-[#7a7280] text-white py-1 text-xs font-bold hover:opacity-80 transition font-mono-dispatch tracking-wider"><span class="module-title" data-module="btn-checkin" data-default="签到值班">签到值班</span></button>
-                            <button onclick="checkTime('night','end')" class="flex-1 bg-[#56514a] text-white py-1 text-xs font-bold hover:opacity-80 transition font-mono-dispatch tracking-wider"><span class="module-title" data-module="btn-checkout" data-default="签退">签退</span></button>
-                            <button onclick="openCheckModal('night')" class="bg-[#f3efe6] text-[#8a8378] px-2 py-1 text-xs border border-[#cdc4b1] hover:text-[#7a7280] transition" title="补录/复盘"><i class="fas fa-edit"></i></button>
+                            <div style="display:flex; align-items:center; gap:4px;">
+                                <span class="text-[10px] text-[#8a8378] font-mono-dispatch tracking-wider module-title" data-module="period-night-time" data-default="23:00-次日">23:00-次日</span>
+                                <button onclick="openCheckModal('night')" class="bg-[#f3efe6] text-[#8a8378] px-1.5 py-0.5 text-xs border border-[#cdc4b1] hover:text-[#7a7280] transition" title="补录/复盘" style="line-height:1;"><i class="fas fa-edit" style="font-size:10px;"></i></button>
+                            </div>
                         </div>
                         <div id="night" class="text-[11px] p-1.5 text-[#56514a] font-mono border border-[#cdc4b1] min-h-[44px]" style="background:#f3efe6;">始: -  终: -</div>
                     </div>
@@ -1614,17 +1684,186 @@
             }
         }
 
+        // 获取当前所属时段
+        function getCurrentPeriod() {
+            const h = new Date().getHours();
+            if (h >= 8 && h < 12) return 'morning';
+            if (h >= 12 && h < 18) return 'afternoon';
+            if (h >= 18 && h < 23) return 'evening';
+            return 'night';
+        }
+
+        // 更新当前时段标签
+        function updatePeriodLabel() {
+            const p = getCurrentPeriod();
+            const info = { morning: ['早班', '08:00-12:00', '#4b8a6c', 'fa-sun'], afternoon: ['午班', '12:00-18:00', '#3a5c80', 'fa-cloud-sun'], evening: ['晚班', '18:00-23:00', '#c08a3a', 'fa-moon'], night: ['深夜', '23:00-次日', '#7a7280', 'fa-star'] };
+            const [name, time, color, icon] = info[p];
+            const el = document.getElementById('currentPeriodLabel');
+            if (el) el.innerHTML = `<i class="fas ${icon}" style="color:${color};"></i> 当前：<b style="color:${color};">${name}</b> <span style="opacity:0.7;">${time}</span>`;
+            // 高亮当前时段卡片
+            ['morning','afternoon','evening','night'].forEach(pp => {
+                const card = document.getElementById('periodCard-' + pp);
+                if (card) card.style.boxShadow = pp === p ? `inset 0 0 0 2px ${info[pp][2]}33, 0 2px 8px ${info[pp][2]}18` : 'none';
+            });
+        }
+
+        // ================= 签到/签退 音效 · MBCC暗色钢琴 =================
+        // 合成钢琴单音：多谐波 + 指数衰减 + 轻微失谐
+        function _pianoNote(ctx, dest, freq, time, vel, dur) {
+            const harmonics = [
+                [1, 1], [2, 0.5], [3, 0.18], [4, 0.08], [5, 0.04], [6, 0.02]
+            ];
+            harmonics.forEach(([h, amp]) => {
+                const osc = ctx.createOscillator();
+                const g = ctx.createGain();
+                osc.type = 'sine';
+                // 高次谐波略微偏高，模拟真钢琴的非谐性
+                osc.frequency.value = freq * h * (1 + h * 0.0003);
+                const peak = vel * amp;
+                g.gain.setValueAtTime(0, time);
+                g.gain.linearRampToValueAtTime(peak, time + 0.008);
+                g.gain.exponentialRampToValueAtTime(peak * 0.4, time + dur * 0.3);
+                g.gain.exponentialRampToValueAtTime(0.001, time + dur);
+                osc.connect(g); g.connect(dest);
+                osc.start(time); osc.stop(time + dur + 0.05);
+            });
+            // 琴槌敲击噪声
+            const hLen = Math.floor(ctx.sampleRate * 0.015);
+            const hBuf = ctx.createBuffer(1, hLen, ctx.sampleRate);
+            const hd = hBuf.getChannelData(0);
+            for (let i = 0; i < hLen; i++) hd[i] = (Math.random() * 2 - 1) * (1 - i / hLen);
+            const hs = ctx.createBufferSource(); hs.buffer = hBuf;
+            const hpf = ctx.createBiquadFilter();
+            hpf.type = 'highpass'; hpf.frequency.value = 3000;
+            const hg = ctx.createGain(); hg.gain.value = vel * 0.15;
+            hs.connect(hpf); hpf.connect(hg); hg.connect(dest);
+            hs.start(time);
+        }
+
+        function playCheckSound(type) {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const master = ctx.createGain();
+                master.gain.setValueAtTime(0.15, ctx.currentTime);
+                master.connect(ctx.destination);
+                const t0 = ctx.currentTime;
+
+                // 签到：D小调 D4→F4→A4，轻柔上行，像晨光透过矫正局的窗
+                // 签退：A小调 E4→C4→A3，缓缓下沉，一天的重量落定
+                const notes = type === 'end'
+                    ? [[330, 0, 0.45], [262, 0.22, 0.35], [220, 0.44, 0.4]]
+                    : [[294, 0, 0.45], [349, 0.22, 0.35], [440, 0.44, 0.3]];
+
+                notes.forEach(([freq, delay, vel]) => {
+                    _pianoNote(ctx, master, freq, t0 + delay, vel, 1.0);
+                });
+
+                setTimeout(() => ctx.close(), 2000);
+            } catch(e) { /* silent */ }
+        }
+
+        // ================= 签到/签退 MBCC 风格全屏动画 =================
+        function showCheckAnimation(period, type) {
+            const overlay = document.getElementById('checkOverlay');
+            const title = document.getElementById('checkTitle');
+            const scramble = document.getElementById('checkScramble');
+            const barFill = document.getElementById('checkBarFill');
+            const status = document.getElementById('checkStatusText');
+            if (!overlay) return;
+
+            const periodInfo = {
+                morning: ['早班', 'MORNING SHIFT', '#4b8a6c'],
+                afternoon: ['午班', 'AFTERNOON SHIFT', '#3a5c80'],
+                evening: ['晚班', 'EVENING SHIFT', '#c08a3a'],
+                night: ['深夜', 'NIGHT SHIFT', '#7a7280']
+            };
+            const [cnName, enName, pColor] = periodInfo[period] || ['值班', 'SHIFT', '#7a1a1f'];
+            const actionCn = type === 'start' ? '签到' : '签退';
+            const actionEn = type === 'start' ? 'CHECK-IN' : 'CHECK-OUT';
+
+            // 设置主题色：签到蓝，签退绿
+            const accentColor = type === 'start' ? '#3a5c80' : '#4b8a6c';
+            overlay.style.setProperty('--check-accent', accentColor);
+
+            // 重置元素
+            overlay.className = ''; // 清除 fade-out
+            title.style.animation = 'none'; title.offsetHeight; title.style.animation = '';
+            status.style.animation = 'none'; status.offsetHeight; status.style.animation = '';
+            status.className = 'check-status';
+            barFill.style.width = '0%';
+            title.textContent = 'IDENTITY VERIFY';
+            status.textContent = 'AUTHENTICATING ...';
+            scramble.textContent = '';
+
+            // 显示 overlay
+            overlay.classList.add('active');
+
+            // 乱码文本
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&*';
+            let scrambleTimer = setInterval(() => {
+                let s = '';
+                for (let i = 0; i < 32; i++) s += chars[Math.floor(Math.random() * chars.length)];
+                scramble.textContent = s;
+            }, 60);
+
+            // 进度条动画
+            let progress = 0;
+            let barTimer = setInterval(() => {
+                progress += Math.random() * 18 + 6;
+                if (progress > 100) progress = 100;
+                barFill.style.width = progress + '%';
+                if (progress >= 100) clearInterval(barTimer);
+            }, 80);
+
+            // 0.5s: 标题换成操作
+            setTimeout(() => {
+                title.textContent = actionEn;
+            }, 500);
+
+            // 0.8s: 状态文本切换
+            setTimeout(() => {
+                status.textContent = `${enName} · ${actionCn}确认`;
+            }, 800);
+
+            // 1.2s: 成功
+            setTimeout(() => {
+                clearInterval(scrambleTimer);
+                scramble.textContent = `▸ ${cnName} ${actionCn} · CONFIRMED`;
+                status.textContent = 'ACCESS GRANTED';
+                status.classList.add('success');
+                barFill.style.width = '100%';
+            }, 1200);
+
+            // 1.8s: 淡出
+            setTimeout(() => {
+                overlay.classList.add('fade-out');
+            }, 1800);
+
+            // 2.1s: 隐藏
+            setTimeout(() => {
+                overlay.classList.remove('active', 'fade-out');
+            }, 2100);
+        }
+
+        // 智能签到/签退
+        function smartCheck(type) {
+            const period = getCurrentPeriod();
+            checkTime(period, type);
+            // MBCC 风格全屏动画 + 音效
+            showCheckAnimation(period, type);
+            playCheckSound(type);
+        }
+
         function checkTime(period, type) {
             const recs = getCheckRecordsForToday();
             const periods = ['morning', 'afternoon', 'evening', 'night'];
-            const boundaries = ['12:00:00', '18:00:00', '23:00:00']; // 各时段之间的分界线
+            const boundaries = ['12:00:00', '18:00:00', '23:00:00'];
             const currentIdx = periods.indexOf(period);
 
             // 记录当前操作
             recs[period][type] = new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12: false });
 
             // ===== 跨时段自动填充 =====
-            // 查找当前时段之前最早的"有签到无签退"的时段
             let earliestOpenIdx = -1;
             for (let i = 0; i < currentIdx; i++) {
                 if (recs[periods[i]].start && !recs[periods[i]].end) {
@@ -1632,10 +1871,9 @@
                     break;
                 }
             }
-            // 如果找到了更早的未关闭时段，自动填充中间所有边界
             if (earliestOpenIdx >= 0 && earliestOpenIdx < currentIdx) {
                 for (let i = earliestOpenIdx; i < currentIdx; i++) {
-                    const bnd = boundaries[i]; // 时段 i 与 i+1 之间的分界时间
+                    const bnd = boundaries[i];
                     if (!recs[periods[i]].end)      recs[periods[i]].end = bnd;
                     if (!recs[periods[i+1]].start)   recs[periods[i+1]].start = bnd;
                 }
@@ -1644,9 +1882,6 @@
             saveData();
             renderCheckDisplay();
             updateStreakBadge();
-            const btn = event.currentTarget; const orig = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-stamp"></i> 已记录';
-            setTimeout(() => btn.innerHTML = orig, 800);
         }
 
         function renderCheckDisplay() {
@@ -2437,8 +2672,8 @@
             loadData(); loadAvatar(); loadCustomTitles(); bindEvents();
             document.getElementById("currentDate").innerText = new Date().toLocaleDateString();
             autoCheckBoundary();
-            renderAll(); initDragAndDrop();
-            setInterval(() => { document.getElementById("currentDate").innerText = new Date().toLocaleDateString(); autoCheckBoundary(); renderAll(); }, 60000);
+            renderAll(); initDragAndDrop(); updatePeriodLabel();
+            setInterval(() => { document.getElementById("currentDate").innerText = new Date().toLocaleDateString(); autoCheckBoundary(); renderAll(); updatePeriodLabel(); }, 60000);
         }
 
         init();
@@ -2971,7 +3206,7 @@
             }
         })();
 
-        window.checkTime = checkTime; window.toggleModuleSize = toggleModuleSize; window.toggleLayoutLock = toggleLayoutLock; window.toggleRevisionMode = toggleRevisionMode;
+        window.checkTime = checkTime; window.smartCheck = smartCheck; window.playCheckSound = playCheckSound; window.showCheckAnimation = showCheckAnimation; window.toggleModuleSize = toggleModuleSize; window.toggleLayoutLock = toggleLayoutLock; window.toggleRevisionMode = toggleRevisionMode;
         window.openCheckModal = openCheckModal; window.saveCheckModal = saveCheckModal; window.applyLeave = applyLeave;
         window.exportData = exportData; window.importData = importData; window.setupAutoBackup = setupAutoBackup;
         window.openSyncSettings = openSyncSettings; window.saveGistSettings = saveGistSettings; window.disconnectGist = disconnectGist;
@@ -3091,15 +3326,15 @@
             const progressBar = document.getElementById('mbccProgressBar');
             const scrambleEl = document.getElementById('loadingScramble');
             const statusEl = document.getElementById('loadingStatusText');
+            const tapHint = document.getElementById('loadingTapHint');
 
-            // 尝试播放开场音效（需用户交互才能自动播放）
+            // 尝试播放开场音效（桌面端通常可直接播放）
             let bootSoundPlayed = false;
             function tryPlayBoot() {
-                if (!bootSoundPlayed) { bootSoundPlayed = true; playMBCCBootSound(); }
+                if (!bootSoundPlayed) { bootSoundPlayed = true; playMBCCBootSound(); if (tapHint) tapHint.style.display = 'none'; }
             }
-            // 直接尝试（刷新页面时通常可以）
             tryPlayBoot();
-            // 点击/触摸兜底（首次访问时浏览器可能阻止自动播放）
+            // iOS / 移动端需要用户手势，点击/触摸兜底
             overlay.addEventListener('click', tryPlayBoot, { once: true });
             overlay.addEventListener('touchstart', tryPlayBoot, { once: true });
 
@@ -3108,7 +3343,7 @@
             const scrambleTimer = setInterval(updateScramble, 80);
 
             // Three-stage permission narration
-            let statusStage = 1; // 1: acquiring, 2: verifying, 3: success
+            let statusStage = 1;
             function switchStatus(text, opts) {
                 if (!statusEl) return;
                 statusEl.classList.add('fading');
@@ -3128,7 +3363,6 @@
                 if (progress > 100) progress = 100;
                 if (progressBar) progressBar.style.width = progress + '%';
 
-                // Stage transitions: 33% → verifying, 88% → success
                 if (statusStage === 1 && progress >= 33) {
                     statusStage = 2;
                     switchStatus('局长权限验证中');
@@ -3139,12 +3373,10 @@
 
                 if (progress === 100) {
                     clearInterval(progressInterval); clearInterval(scrambleTimer);
-                    // Ensure success message shows if we skipped past 88% in one tick
                     if (statusStage < 3) {
                         statusStage = 3;
                         switchStatus('验证通过，登录成功', { success: true });
                     }
-                    // Give the success message a moment to be read, then fade out
                     setTimeout(() => { overlay.classList.add('fade-out'); setTimeout(() => { overlay.style.display = 'none'; }, 800); }, 900);
                 }
             }, 120);
