@@ -1367,7 +1367,10 @@
                     <div id="syncResultMsg" class="text-xs text-center hidden"></div>
                     <div class="border-t border-[#cdc4b1] pt-3 flex justify-between items-center">
                         <span class="text-xs text-[#8a8378]" id="lastSyncTimeLabel">尚未同步</span>
-                        <button onclick="manualSync()" class="text-xs text-[#8b5cf6] hover:text-[#a78bfa] transition font-bold"><i class="fas fa-sync-alt mr-1"></i>手动同步</button>
+                        <div style="display:flex; gap:10px; align-items:center;">
+                            <button id="restorePreSyncBtn" onclick="restorePreSyncSnapshot()" class="hidden text-xs text-[#a85782] hover:text-[#df83ab] transition font-bold"><i class="fas fa-history mr-1"></i>恢复同步前快照</button>
+                            <button onclick="manualSync()" class="text-xs text-[#8b5cf6] hover:text-[#a78bfa] transition font-bold"><i class="fas fa-sync-alt mr-1"></i>手动同步</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1499,6 +1502,11 @@
                             <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#8a8378; letter-spacing:0.1em;">DAYS</span>
                         </div>
                         <div id="unifiedBalanceDetail" style="font-family:'JetBrains Mono',monospace; font-size:8px; color:#8a8378; letter-spacing:0.08em; margin-top:8px; line-height:1.6; text-transform:uppercase;">BASE 5d · +OT 0d · -SHORT 0d · ANNUAL USED 0d</div>
+                        <div style="display:flex; align-items:center; gap:5px; margin-top:8px; flex-wrap:wrap;">
+                            <span style="font-family:'JetBrains Mono',monospace; font-size:8px; color:#657f99; letter-spacing:0.08em;">核算起点</span>
+                            <input id="balanceStartDateInput" type="date" onchange="setBalanceStartDate(this.value)" style="min-width:116px; padding:2px 4px; border:1px solid rgba(63,118,169,.24); background:rgba(250,253,255,.7); color:#365f86; font-family:'JetBrains Mono',monospace; font-size:8px;">
+                            <button onclick="resetBalanceStartDate()" title="恢复为最早有效打卡或请假日期" style="padding:2px 5px; border:1px solid rgba(63,118,169,.22); background:transparent; color:#657f99; font-family:'JetBrains Mono',monospace; font-size:8px; cursor:pointer;">AUTO</button>
+                        </div>
                     </div>
                     <!-- Today Hours -->
                     <div style="padding:14px 16px; border-right:1px solid #cdc4b1;">
@@ -1676,7 +1684,7 @@
 
     <script>
         // ================= 数据初始化与存储 =================
-        let appData = { tasks: [], focusByCategory: {}, checkRecords: {}, ideas: [], moodHistory: {}, leaveRecords: {}, annualLeaveHistory: {} };
+        let appData = { tasks: [], focusByCategory: {}, checkRecords: {}, ideas: [], moodHistory: {}, leaveRecords: {}, annualLeaveHistory: {}, balanceConfig: { startDate: null } };
         let currentCalendarDate = new Date();
         let isLayoutLocked = true;
         let isRevisionMode = false;
@@ -1684,8 +1692,13 @@
 
         function getTodayStr() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
         function formatDateToYMD(timestamp) { const d = new Date(timestamp); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
-        function saveData() {
+        function persistLocalDataOnly() {
             localStorage.setItem("mbcc_system_v1", JSON.stringify(appData));
+        }
+
+        function saveData() {
+            persistLocalDataOnly();
+            localStorage.setItem('mbcc_local_modified_at', new Date().toISOString());
             // 自动备份：每次保存后触发
             if (autoBackupDirHandle) {
                 try { performAutoBackup(); } catch(e) { console.warn('Auto backup trigger failed:', e); }
@@ -1708,6 +1721,7 @@
                     appData.moodHistory = parsed.moodHistory || {};
                     appData.leaveRecords = parsed.leaveRecords || {};
                     appData.annualLeaveHistory = parsed.annualLeaveHistory || {};
+                    appData.balanceConfig = parsed.balanceConfig && typeof parsed.balanceConfig === 'object' ? parsed.balanceConfig : { startDate: null };
                     // Legacy migration: old focusSessions (pomodoro) → dump into 无名剑 category as fallback
                     if (Array.isArray(parsed.focusSessions) && parsed.focusSessions.length > 0 && Object.keys(appData.focusByCategory).length === 0) {
                         parsed.focusSessions.forEach(s => {
@@ -1716,9 +1730,10 @@
                             appData.focusByCategory[s.dateStr]['无名剑'] = (appData.focusByCategory[s.dateStr]['无名剑'] || 0) + s.durationMinutes;
                         });
                     }
-                } catch(e) { appData = { tasks: [], focusByCategory: {}, checkRecords: {}, ideas: [], moodHistory: {}, leaveRecords: {}, annualLeaveHistory: {} }; }
+                } catch(e) { appData = { tasks: [], focusByCategory: {}, checkRecords: {}, ideas: [], moodHistory: {}, leaveRecords: {}, annualLeaveHistory: {}, balanceConfig: { startDate: null } }; }
             }
-            saveData();
+            // Loading must not mark data as edited or trigger a cloud upload.
+            persistLocalDataOnly();
         }
 
         // ================= 修订模式：自定义标题 =================
@@ -3356,11 +3371,12 @@
         if (!appData.leaveRecords) appData.leaveRecords = {}; // { '2026-04-09': { type: 'sick'|'personal'|'annual', days: 1, note: '...' } }
         if (!appData.annualLeaveHistory) appData.annualLeaveHistory = {}; // { '2026': { granted: 5, used: 0 } }
 
-        function ensureAnnualLeave() {
+        function ensureAnnualLeave(shouldSync = true) {
             const currentYear = String(new Date().getFullYear());
             if (!appData.annualLeaveHistory[currentYear]) {
                 appData.annualLeaveHistory[currentYear] = { granted: ANNUAL_LEAVE_BASE, used: 0 };
-                saveData();
+                if (shouldSync) saveData();
+                else persistLocalDataOnly();
             }
         }
 
@@ -3458,18 +3474,52 @@
 
         // 统一假期账户余额（分钟数，可正可负）
         // 账户 = 历年基础年假 + 工时超时存入 - 工时欠时扣减 - 已用年假
-        // 获取系统最早记录日期（打卡、专注、请假中最早的一天）
+        // 专注记录不属于工时来源，因此绝不能改变库存核算起点。
         function getEarliestRecordDate() {
             const checkDates = Object.entries(appData.checkRecords || {})
                 .filter(([, rec]) => Array.isArray(rec?.shifts) && rec.shifts.some(s => s && (s.start || s.end || s.energy || s.note)))
                 .map(([date]) => date);
-            const focusDates = Object.entries(appData.focusByCategory || {})
-                .filter(([, day]) => day && Object.values(day).some(minutes => Number(minutes) > 0))
-                .map(([date]) => date);
             const leaveDates = Object.keys(appData.leaveRecords || {});
-            const allDates = [...checkDates, ...focusDates, ...leaveDates]
+            const allDates = [...checkDates, ...leaveDates]
                 .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
             return allDates.length > 0 ? allDates[0] : null;
+        }
+
+        function getBalanceStartDate() {
+            const configured = appData.balanceConfig && appData.balanceConfig.startDate;
+            if (configured && /^\d{4}-\d{2}-\d{2}$/.test(configured)) return configured;
+            return getEarliestRecordDate();
+        }
+
+        function setBalanceStartDate(value) {
+            const input = document.getElementById('balanceStartDateInput');
+            const oldConfigured = appData.balanceConfig && appData.balanceConfig.startDate || null;
+            const oldValue = getBalanceStartDate();
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value > getTodayStr()) {
+                alert('请选择不晚于今天的有效日期。');
+                if (input) input.value = oldValue || '';
+                return;
+            }
+            if (!appData.balanceConfig) appData.balanceConfig = { startDate: null };
+            appData.balanceConfig.startDate = value;
+            const previewDays = calculateUnifiedBalance().balanceMinutes / DAILY_BASE_MINUTES;
+            if (!confirm(`库存核算起点将改为 ${value}。\n重新计算后的余额约为 ${previewDays.toFixed(1)} 天，确认保存？`)) {
+                appData.balanceConfig.startDate = oldConfigured;
+                if (input) input.value = oldValue || '';
+                return;
+            }
+            saveData();
+            renderHolidayBank();
+        }
+
+        function resetBalanceStartDate() {
+            const automaticDate = getEarliestRecordDate();
+            if (!appData.balanceConfig) appData.balanceConfig = { startDate: null };
+            appData.balanceConfig.startDate = null;
+            saveData();
+            renderHolidayBank();
+            if (automaticDate) alert(`已恢复自动核算，起点为最早有效打卡或请假日期：${automaticDate}`);
+            else alert('当前没有有效打卡或请假记录，暂不计算欠时。');
         }
 
         // 枚举从 startStr 到 endStr 的所有日期
@@ -3488,7 +3538,7 @@
         }
 
         function calculateUnifiedBalance() {
-            ensureAnnualLeave();
+            ensureAnnualLeave(false);
             let grantedMinutes = 0;
             let annualUsedMinutes = 0;
             Object.values(appData.annualLeaveHistory || {}).forEach(rec => {
@@ -3498,8 +3548,8 @@
             let totalDeposit = 0;
             let totalDeficit = 0;
 
-            // 从最早记录日到今天，逐天计算（含无打卡的工作日）
-            const earliest = getEarliestRecordDate();
+            // 从独立核算起点到今天逐日计算；专注记录不会参与起点判定。
+            const earliest = getBalanceStartDate();
             if (earliest) {
                 const today = getTodayStr();
                 const allDates = enumDates(earliest, today);
@@ -3557,6 +3607,11 @@
             const annualUsedD = (annualUsedMinutes / DAILY_BASE_MINUTES).toFixed(0);
             document.getElementById('unifiedBalanceDetail').innerHTML =
                 `BASE ${grantedD}d &nbsp;· &nbsp;+OT ${depositD}d &nbsp;· &nbsp;-SHORT ${deficitD}d &nbsp;· &nbsp;ANNUAL USED ${annualUsedD}d`;
+            const balanceStartInput = document.getElementById('balanceStartDateInput');
+            if (balanceStartInput) {
+                balanceStartInput.value = getBalanceStartDate() || '';
+                balanceStartInput.max = getTodayStr();
+            }
 
             // Sick / Personal counts (split)
             let sickDays = 0, personalDays = 0;
@@ -3695,6 +3750,7 @@
                     const imported = JSON.parse(e.target.result);
                     if (!imported.appData) { alert('无效的备份文件'); return; }
                     if (!confirm('导入将覆盖当前所有数据，确认继续？')) return;
+                    savePreSyncSnapshot('before-file-import');
                     const d = imported.appData;
                     appData.tasks = d.tasks || [];
                     appData.focusByCategory = d.focusByCategory || {};
@@ -3709,6 +3765,7 @@
                     appData.checkRecords = d.checkRecords || {}; appData.ideas = d.ideas || [];
                     appData.moodHistory = d.moodHistory || {};
                     appData.leaveRecords = d.leaveRecords || {}; appData.annualLeaveHistory = d.annualLeaveHistory || {};
+                    appData.balanceConfig = d.balanceConfig && typeof d.balanceConfig === 'object' ? d.balanceConfig : { startDate: null };
                     saveData();
                     if (imported.customTitles) { customTitles = imported.customTitles; localStorage.setItem('mbcc_custom_titles_v1', JSON.stringify(customTitles)); }
                     if (imported.layout) localStorage.setItem('mbcc_layout_v1', imported.layout);
@@ -3913,6 +3970,12 @@
         function setGistId(id) { localStorage.setItem('mbcc_gist_id', id); }
         function isGistConnected() { return !!(getGistToken() && getGistId()); }
 
+        function getSyncClock() {
+            const lastSync = new Date(localStorage.getItem('mbcc_gist_last_sync') || 0).getTime();
+            const localModified = new Date(localStorage.getItem('mbcc_local_modified_at') || 0).getTime();
+            return { lastSync, localModified, localDirty: localModified > lastSync };
+        }
+
         function getFullExportObj() {
             return {
                 _meta: { syncedAt: new Date().toISOString(), version: 'mbcc_v1', device: navigator.userAgent.slice(0, 60) },
@@ -3957,7 +4020,9 @@
                 if (resp.status === 401) throw new Error('Token 无效或已过期，请重新设置');
                 throw new Error('更新失败: ' + resp.status + ' ' + errText);
             }
-            localStorage.setItem('mbcc_gist_last_sync', new Date().toISOString());
+            const syncedAt = new Date().toISOString();
+            localStorage.setItem('mbcc_gist_last_sync', syncedAt);
+            localStorage.setItem('mbcc_local_modified_at', syncedAt);
             updateSyncIndicator('synced');
         }
 
@@ -3980,44 +4045,89 @@
             return JSON.parse(data.files[GIST_FILENAME].content);
         }
 
-        // 合并云端数据到本地（云端优先，按日期键逐条合并）
-        function mergeCloudData(cloudObj) {
+        function normalizeAppDataSnapshot(source) {
+            const d = source && typeof source === 'object' ? source : {};
+            return {
+                tasks: Array.isArray(d.tasks) ? d.tasks : [],
+                focusByCategory: d.focusByCategory && typeof d.focusByCategory === 'object' ? d.focusByCategory : {},
+                checkRecords: d.checkRecords && typeof d.checkRecords === 'object' ? d.checkRecords : {},
+                ideas: Array.isArray(d.ideas) ? d.ideas : [],
+                moodHistory: d.moodHistory && typeof d.moodHistory === 'object' ? d.moodHistory : {},
+                leaveRecords: d.leaveRecords && typeof d.leaveRecords === 'object' ? d.leaveRecords : {},
+                annualLeaveHistory: d.annualLeaveHistory && typeof d.annualLeaveHistory === 'object' ? d.annualLeaveHistory : {},
+                balanceConfig: d.balanceConfig && typeof d.balanceConfig === 'object' ? d.balanceConfig : { startDate: null }
+            };
+        }
+
+        function hasMeaningfulAppData(data) {
+            if (!data || typeof data !== 'object') return false;
+            return ['checkRecords', 'focusByCategory', 'leaveRecords', 'annualLeaveHistory']
+                .some(key => data[key] && Object.keys(data[key]).length > 0) ||
+                (Array.isArray(data.tasks) && data.tasks.length > 0) ||
+                (Array.isArray(data.ideas) && data.ideas.length > 0);
+        }
+
+        function savePreSyncSnapshot(reason) {
+            try {
+                const snapshot = getFullExportObj();
+                snapshot._meta = { ...snapshot._meta, snapshotReason: reason || 'cloud-replace', snapshotAt: new Date().toISOString() };
+                localStorage.setItem('mbcc_pre_sync_snapshot_v1', JSON.stringify(snapshot));
+                const btn = document.getElementById('restorePreSyncBtn');
+                if (btn) btn.classList.remove('hidden');
+                return true;
+            } catch (e) {
+                console.warn('Pre-sync snapshot failed:', e);
+                return false;
+            }
+        }
+
+        function applyCloudSnapshot(cloudObj, force = false) {
             if (!cloudObj || !cloudObj.appData) return false;
-            const cloud = cloudObj.appData;
             const cloudTime = cloudObj._meta ? new Date(cloudObj._meta.syncedAt).getTime() : 0;
             const localTime = new Date(localStorage.getItem('mbcc_gist_last_sync') || 0).getTime();
+            if (!force && cloudTime <= localTime) return false;
 
-            // 如果云端更新，用云端数据合并
-            if (cloudTime > localTime) {
-                // 逐字段合并（保留本地有但云端没有的日期记录）
-                ['focusByCategory', 'checkRecords', 'moodHistory', 'leaveRecords'].forEach(key => {
-                    if (cloud[key] && typeof cloud[key] === 'object') {
-                        Object.keys(cloud[key]).forEach(dateKey => {
-                            appData[key][dateKey] = cloud[key][dateKey];
-                        });
-                    }
-                });
-                // 数组字段：云端覆盖
-                if (Array.isArray(cloud.tasks)) appData.tasks = cloud.tasks;
-                if (Array.isArray(cloud.ideas)) appData.ideas = cloud.ideas;
-                if (cloud.annualLeaveHistory && typeof cloud.annualLeaveHistory === 'object') {
-                    appData.annualLeaveHistory = cloud.annualLeaveHistory;
-                }
-                // 恢复自定义标题
-                if (cloudObj.customTitles && typeof cloudObj.customTitles === 'object') {
-                    customTitles = cloudObj.customTitles;
-                    localStorage.setItem("mbcc_custom_titles_v1", JSON.stringify(customTitles));
-                }
-                // 恢复布局
-                if (cloudObj.layout) localStorage.setItem('mbcc_layout_v1', cloudObj.layout);
-                // 恢复头像
-                if (cloudObj.avatar) localStorage.setItem('mbcc_avatar', cloudObj.avatar);
-
-                localStorage.setItem("mbcc_system_v1", JSON.stringify(appData));
-                localStorage.setItem('mbcc_gist_last_sync', cloudObj._meta.syncedAt);
-                return true; // 有更新
+            savePreSyncSnapshot('before-cloud-snapshot');
+            appData = normalizeAppDataSnapshot(cloudObj.appData);
+            if (cloudObj.customTitles && typeof cloudObj.customTitles === 'object') {
+                customTitles = cloudObj.customTitles;
+                localStorage.setItem('mbcc_custom_titles_v1', JSON.stringify(customTitles));
             }
-            return false; // 本地已是最新
+            if (cloudObj.layout) localStorage.setItem('mbcc_layout_v1', cloudObj.layout);
+            if (cloudObj.avatar) localStorage.setItem('mbcc_avatar', cloudObj.avatar);
+            persistLocalDataOnly();
+            const appliedAt = cloudObj._meta?.syncedAt || new Date().toISOString();
+            localStorage.setItem('mbcc_gist_last_sync', appliedAt);
+            localStorage.setItem('mbcc_local_modified_at', appliedAt);
+            return true;
+        }
+
+        function restorePreSyncSnapshot() {
+            const raw = localStorage.getItem('mbcc_pre_sync_snapshot_v1');
+            if (!raw) { alert('没有可恢复的同步前快照。'); return; }
+            if (!confirm('恢复同步前快照将替换当前本地数据，但不会立即上传云端。确认继续？')) return;
+            try {
+                const snapshot = JSON.parse(raw);
+                if (!snapshot.appData) throw new Error('快照内容不完整');
+                appData = normalizeAppDataSnapshot(snapshot.appData);
+                if (snapshot.customTitles && typeof snapshot.customTitles === 'object') {
+                    customTitles = snapshot.customTitles;
+                    localStorage.setItem('mbcc_custom_titles_v1', JSON.stringify(customTitles));
+                }
+                if (snapshot.layout) localStorage.setItem('mbcc_layout_v1', snapshot.layout);
+                if (snapshot.avatar) localStorage.setItem('mbcc_avatar', snapshot.avatar);
+                persistLocalDataOnly();
+                localStorage.setItem('mbcc_local_modified_at', new Date().toISOString());
+                renderAll(); loadAvatar(); loadCustomTitles();
+                alert('同步前快照已恢复到本地。确认数据无误后，再手动同步到 GitHub。');
+            } catch (e) {
+                alert('快照恢复失败：' + e.message);
+            }
+        }
+
+        // 云端采用完整快照替换，禁止把两套日期记录静默混合。
+        function mergeCloudData(cloudObj) {
+            return applyCloudSnapshot(cloudObj, false);
         }
 
         // 防抖推送到云端
@@ -4042,6 +4152,11 @@
             try {
                 const cloudObj = await fetchGist();
                 if (cloudObj) {
+                    const cloudTime = new Date(cloudObj._meta?.syncedAt || 0).getTime();
+                    const clock = getSyncClock();
+                    if (clock.localDirty && cloudTime > clock.lastSync) {
+                        throw new Error('本地与云端都有新修改，请点击“手动同步”选择保留哪一套数据');
+                    }
                     const updated = mergeCloudData(cloudObj);
                     if (updated) {
                         renderAll();
@@ -4096,6 +4211,8 @@
             document.getElementById('gistDisconnectBtn').classList.toggle('hidden', !isGistConnected());
             const lastSync = localStorage.getItem('mbcc_gist_last_sync');
             document.getElementById('lastSyncTimeLabel').textContent = lastSync ? '上次同步: ' + new Date(lastSync).toLocaleString() : '尚未同步';
+            const restoreBtn = document.getElementById('restorePreSyncBtn');
+            if (restoreBtn) restoreBtn.classList.toggle('hidden', !localStorage.getItem('mbcc_pre_sync_snapshot_v1'));
             document.getElementById('syncResultMsg').classList.add('hidden');
         }
 
@@ -4124,14 +4241,24 @@
 
             try {
                 if (gistId) {
-                    // 已有 Gist ID：验证并拉取
+                    // 已有 Gist ID：明确选择整套本地或整套云端，禁止静默混合。
                     setGistId(gistId);
                     const cloudObj = await fetchGist();
                     if (cloudObj) {
-                        const updated = mergeCloudData(cloudObj);
-                        if (updated) renderAll();
+                        const localHasData = hasMeaningfulAppData(appData);
+                        const cloudHasData = hasMeaningfulAppData(cloudObj.appData);
+                        let useCloud = cloudHasData;
+                        if (localHasData && cloudHasData) {
+                            useCloud = confirm('检测到本地和 GitHub 都有数据。\n\n确定：使用整套 GitHub 数据覆盖本地\n取消：保留整套本地数据并覆盖 GitHub\n\n系统不会再混合两套日期记录。');
+                        }
+                        if (useCloud) {
+                            const updated = applyCloudSnapshot(cloudObj, true);
+                            if (updated) renderAll();
+                        } else {
+                            savePreSyncSnapshot('before-local-snapshot-upload');
+                        }
                     }
-                    // 推送本地数据到云端（合并后）
+                    // 将用户选定的完整快照推送到云端。
                     await updateGist();
                     showSyncResult('连接成功！数据已同步', false);
                 } else {
@@ -4139,7 +4266,9 @@
                     const newId = await createGist(token);
                     setGistId(newId);
                     document.getElementById('gistIdInput').value = newId;
-                    localStorage.setItem('mbcc_gist_last_sync', new Date().toISOString());
+                    const syncedAt = new Date().toISOString();
+                    localStorage.setItem('mbcc_gist_last_sync', syncedAt);
+                    localStorage.setItem('mbcc_local_modified_at', syncedAt);
                     showSyncResult('已创建私有 Gist，数据已上传！', false);
                 }
                 document.getElementById('gistDisconnectBtn').classList.remove('hidden');
@@ -4173,8 +4302,19 @@
                 // 先拉后推
                 const cloudObj = await fetchGist();
                 if (cloudObj) {
-                    const updated = mergeCloudData(cloudObj);
-                    if (updated) renderAll();
+                    const cloudTime = new Date(cloudObj._meta?.syncedAt || 0).getTime();
+                    const clock = getSyncClock();
+                    if (clock.localDirty && cloudTime > clock.lastSync) {
+                        const useCloud = confirm('检测到同步冲突：本地和 GitHub 都有新修改。\n\n确定：使用整套 GitHub 数据\n取消：保留整套本地数据并覆盖 GitHub');
+                        if (useCloud) {
+                            if (applyCloudSnapshot(cloudObj, true)) renderAll();
+                        } else {
+                            savePreSyncSnapshot('before-local-conflict-upload');
+                        }
+                    } else {
+                        const updated = mergeCloudData(cloudObj);
+                        if (updated) renderAll();
+                    }
                 }
                 await updateGist();
                 updateSyncIndicator('synced');
@@ -4198,9 +4338,9 @@
 
         window.checkTime = checkTime; window.smartCheck = smartCheck; window.playCheckSound = playCheckSound; window.playUISound = playUISound; window.toggleUISound = toggleUISound; window.showCheckAnimation = showCheckAnimation; window.toggleModuleSize = toggleModuleSize; window.toggleLayoutLock = toggleLayoutLock; window.toggleRevisionMode = toggleRevisionMode;
         window.openCheckModal = openCheckModal; window.saveCheckModal = saveCheckModal; window.deleteShift = deleteShift; window.applyLeave = applyLeave;
-        window.exportData = exportData; window.importData = importData; window.setupAutoBackup = setupAutoBackup;
+        window.exportData = exportData; window.importData = importData; window.setupAutoBackup = setupAutoBackup; window.setBalanceStartDate = setBalanceStartDate; window.resetBalanceStartDate = resetBalanceStartDate;
         window.openSyncSettings = openSyncSettings; window.saveGistSettings = saveGistSettings; window.disconnectGist = disconnectGist;
-        window.manualSync = manualSync; window.toggleTokenVisibility = toggleTokenVisibility;
+        window.manualSync = manualSync; window.toggleTokenVisibility = toggleTokenVisibility; window.restorePreSyncSnapshot = restorePreSyncSnapshot;
 
         // ================= MBCC 开场音效（Web Audio API 合成） =================
         function playMBCCBootSound() {
